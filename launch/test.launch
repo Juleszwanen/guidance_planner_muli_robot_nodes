@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+
+    <rosparam param="/robot_ns_list">["jackal1", "jackal2"]</rosparam>
+    <node pkg="multi_robot_nodes" type="central_aggregator" name="central_aggregator" output="screen">
+                        
+    </node>
+
+</launch>
