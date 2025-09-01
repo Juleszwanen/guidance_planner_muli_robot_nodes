@@ -12,9 +12,11 @@
 
 CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 {
+
+    PROFILE_FUNCTION();
+    RosTools::Instrumentor::Get().BeginSession("guidance_planner_multi_robot_nodes");
     ROS_INFO_STREAM("STARTING NODE: " << ros::this_node::getName());
 
-   
     if (!nh.getParam("/robot_ns_list", _robot_ns_list))
     {
         ROS_ERROR("No robot_ns_list param");
@@ -34,12 +36,13 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 CentralAggregator::~CentralAggregator()
 {
     ROS_INFO_STREAM("STOPPING NODE: " << ros::this_node::getName() + "\n");
-    
+    RosTools::Instrumentor::Get().EndSession();
 }
 
 // This function is called at the start up of the node
 void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
 {
+    
     // we clear the robot subcriber list for safety reasons
     this->_robot_pose_sub_list.clear();
     // We reserve vector space equal to the number of robots in our system
@@ -165,7 +168,8 @@ void CentralAggregator::poseCallback(const geometry_msgs::PoseStamped::ConstPtr 
 void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
                                            const std::string ns)
 {
-
+    const std::string profiling_name = ns + "_" + "trajectoryCallback"; 
+    PROFILE_SCOPE(profiling_name.c_str()); //need to change is to const char * type
     // get or create a new instance of RobotPrediction object
     auto &robot_trajectory = _robots_trajectory_predictions[ns];
     if (robot_trajectory.id < 0)
@@ -195,7 +199,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
 
 void CentralAggregator::timerCallback(const ros::TimerEvent &)
 {
-    
+    PROFILE_SCOPE("timerCallback");
     auto const_obs_array_per_robot = this->robotsToObstacleArray();
 
     auto trajectory_obs_array_per_robot = this->trajectoriesToObstacleArray();
@@ -224,7 +228,6 @@ void CentralAggregator::timerCallback(const ros::TimerEvent &)
         // Publish trajectory-based obstacles to the trajectory obstacles topic
         it_trajectory_obstacle_pub->second.publish(it_trajectory_obstacle_msg->second);
     }
-    
 }
 
 std::map<std::string, mpc_planner_msgs::ObstacleArray>
@@ -386,6 +389,7 @@ int CentralAggregator::getJackalNumber(const std::string &ns)
 
 int main(int argc, char *argv[])
 {
+
     // the node name will be the name which you give in the launch file
     ros::init(argc, argv, "central_aggregator");
 
