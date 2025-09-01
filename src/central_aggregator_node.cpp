@@ -1,4 +1,4 @@
-#include <multi_robot_nodes/central_aggregator_node.h>
+#include <guidance_planner_multi_robot_nodes/central_aggregator_node.h>
 
 #include <ros_tools/visuals.h>
 #include <ros_tools/logging.h>
@@ -14,6 +14,7 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 {
     ROS_INFO_STREAM("STARTING NODE: " << ros::this_node::getName());
 
+   
     if (!nh.getParam("/robot_ns_list", _robot_ns_list))
     {
         ROS_ERROR("No robot_ns_list param");
@@ -33,6 +34,7 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 CentralAggregator::~CentralAggregator()
 {
     ROS_INFO_STREAM("STOPPING NODE: " << ros::this_node::getName() + "\n");
+    
 }
 
 // This function is called at the start up of the node
@@ -193,7 +195,9 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
 
 void CentralAggregator::timerCallback(const ros::TimerEvent &)
 {
+    
     auto const_obs_array_per_robot = this->robotsToObstacleArray();
+
     auto trajectory_obs_array_per_robot = this->trajectoriesToObstacleArray();
 
     for (const auto &ns : _robot_ns_list)
@@ -220,6 +224,7 @@ void CentralAggregator::timerCallback(const ros::TimerEvent &)
         // Publish trajectory-based obstacles to the trajectory obstacles topic
         it_trajectory_obstacle_pub->second.publish(it_trajectory_obstacle_msg->second);
     }
+    
 }
 
 std::map<std::string, mpc_planner_msgs::ObstacleArray>

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>multi_robot_nodes</name>
+  <name>guidance_planner_multi_robot_nodes</name>
   <version>0.0.0</version>
   <description>The multi_robot_nodes package</description>
 
