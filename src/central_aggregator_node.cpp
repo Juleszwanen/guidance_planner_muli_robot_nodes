@@ -42,7 +42,7 @@ CentralAggregator::~CentralAggregator()
 // This function is called at the start up of the node
 void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
 {
-    
+
     // we clear the robot subcriber list for safety reasons
     this->_robot_pose_sub_list.clear();
     // We reserve vector space equal to the number of robots in our system
@@ -168,8 +168,8 @@ void CentralAggregator::poseCallback(const geometry_msgs::PoseStamped::ConstPtr 
 void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
                                            const std::string ns)
 {
-    const std::string profiling_name = ns + "_" + "trajectoryCallback"; 
-    PROFILE_SCOPE(profiling_name.c_str()); //need to change is to const char * type
+    const std::string profiling_name = "CentralAggregator::" + ns + "_" + "trajectoryCallback";
+    PROFILE_SCOPE(profiling_name.c_str()); // need to change is to const char * type
     // get or create a new instance of RobotPrediction object
     auto &robot_trajectory = _robots_trajectory_predictions[ns];
     if (robot_trajectory.id < 0)
@@ -199,7 +199,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
 
 void CentralAggregator::timerCallback(const ros::TimerEvent &)
 {
-    PROFILE_SCOPE("timerCallback");
+    PROFILE_SCOPE("CentralAggregator::timerCallback");
     auto const_obs_array_per_robot = this->robotsToObstacleArray();
 
     auto trajectory_obs_array_per_robot = this->trajectoriesToObstacleArray();
