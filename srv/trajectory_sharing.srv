@@ -1,0 +1,13 @@
+# Request - Robot asking for another robot's trajectory
+std_msgs/Header    request_header          # Standard timestamp + frame_id
+string             requesting_robot_id     # Who is asking (namespace without /)
+string             target_robot_id         # Whose trajectory we want
+geometry_msgs/Pose requesting_robot_pose   # Current pose for context
+---
+# Response - Providing the requested trajectory  
+std_msgs/Header     response_header         # When this trajectory was computed
+nav_msgs/Path       predicted_trajectory    # The actual trajectory
+float64             trajectory_start_time    # When this trajectory execution started
+float64             trajectory_duration      # How long this trajectory is valid
+bool                is_goal_reached          # Target robot status
+geometry_msgs/Pose  target_robot_pose       # Current pose of target robot
