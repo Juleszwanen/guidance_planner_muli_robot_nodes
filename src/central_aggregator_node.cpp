@@ -15,18 +15,18 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 
     PROFILE_FUNCTION();
     RosTools::Instrumentor::Get().BeginSession("guidance_planner_multi_robot_nodes");
-    ROS_INFO_STREAM("STARTING NODE: " << ros::this_node::getName());
+    LOG_INFO("STARTING NODE: " + ros::this_node::getName());
 
     if (!nh.getParam("/robot_ns_list", _robot_ns_list))
     {
-        ROS_ERROR("No robot_ns_list param");
+        LOG_ERROR("No robot_ns_list param");
     }
 
     else
     {
         for (const auto &ns_str : this->_robot_ns_list)
         {
-            ROS_INFO_STREAM("Robot namespace: " << ns_str);
+            LOG_INFO("Robot namespace: " + ns_str);
         }
     }
 
@@ -35,7 +35,7 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 
 CentralAggregator::~CentralAggregator()
 {
-    ROS_INFO_STREAM("STOPPING NODE: " << ros::this_node::getName() + "\n");
+    LOG_INFO("STOPPING NODE: " + ros::this_node::getName() + "\n");
     RosTools::Instrumentor::Get().EndSession();
 }
 
@@ -60,6 +60,7 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
         // add the subscriber to the list of subscribers such that the objects are not destroyed
         this->_robot_pose_sub_list.push_back(sub_pose_i);
 
+        // create the subscribers for each trajectory a robot outputs
         const std::string topic_trajectory = ns + "/output/current_trajectory";
         ROS_INFO_STREAM("Subscribing to: " << topic_trajectory);
         auto sub_traject_i = nh.subscribe<nav_msgs::Path>(topic_trajectory, 5,
@@ -74,12 +75,12 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     {
         // Create the publishers which are for the constant velocity obstacles
         const std::string output_topic = ns + "/input/obstacles";
-        ROS_INFO_STREAM("Advertising: " << output_topic);
+        LOG_INFO("Advertising: " + output_topic);
         _obs_pub_by_ns[ns] = nh.advertise<mpc_planner_msgs::ObstacleArray>(output_topic, 1);
 
         // create the publishers which are verantwoordelijjk voor trajectory obstacles
         const std::string output_trajectory_topic = ns + "/input/trajectory_obstacles";
-        ROS_INFO_STREAM("Advertising: " << output_trajectory_topic);
+        LOG_INFO("Advertising: " + output_trajectory_topic);
         _obs_trajectory_pub_by_ns[ns] = nh.advertise<mpc_planner_msgs::ObstacleArray>(output_trajectory_topic, 1);
     }
 
@@ -111,8 +112,7 @@ void CentralAggregator::poseCallback(const geometry_msgs::PoseStamped::ConstPtr 
     }
 
     // Reset trajectory contents but keep the id
-    robot_prediction.clearRobotPredictionButKeepId(); // <-- if your method is named clearRobotPrediction(), use that name
-
+    robot_prediction.clearRobotPredictionButKeepId();
     robot_prediction.received_msg_time = ros::Time::now();
 
     // Decode state from your encoded PoseStamped
@@ -170,7 +170,8 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
 {
     const std::string profiling_name = "CentralAggregator::" + ns + "_" + "trajectoryCallback";
     PROFILE_SCOPE(profiling_name.c_str()); // need to change is to const char * type
-    // get or create a new instance of RobotPrediction object
+
+    // get an alreadu existing RobotPrediction object or create a new instance of RobotPrediction object
     auto &robot_trajectory = _robots_trajectory_predictions[ns];
     if (robot_trajectory.id < 0)
     {
@@ -181,6 +182,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
     robot_trajectory.clearRobotPredictionButKeepId(); //
 
     robot_trajectory.received_msg_time = ros::Time::now();
+    // Get the list of posses stored in the message
     const auto &list_of_posesStamped = msg->poses;
     if (_robot_prediction_horizon > 0)
     {
@@ -200,7 +202,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
 void CentralAggregator::timerCallback(const ros::TimerEvent &)
 {
     PROFILE_SCOPE("CentralAggregator::timerCallback");
-    auto const_obs_array_per_robot = this->robotsToObstacleArray();
+    // auto const_obs_array_per_robot = this->robotsToObstacleArray(); uncomment if you want constant prediciton models
 
     auto trajectory_obs_array_per_robot = this->trajectoriesToObstacleArray();
 
@@ -233,8 +235,9 @@ void CentralAggregator::timerCallback(const ros::TimerEvent &)
 std::map<std::string, mpc_planner_msgs::ObstacleArray>
 CentralAggregator::robotsToObstacleArray()
 {
+    // Create an empty dictionary which will contain the trajectory of each robot
     std::map<std::string, mpc_planner_msgs::ObstacleArray> obstacle_array_msg_map;
-    const ros::Time now = ros::Time::now();
+    const ros::Time send_message_time = ros::Time::now();
 
     for (const auto &robot_ns : _robot_ns_list)
     {
@@ -257,7 +260,7 @@ CentralAggregator::robotsToObstacleArray()
             if (prediction.pos.empty() || prediction.angle.empty())
                 continue;
 
-            // ---- Build one obstacle (same style as pedestrian sim) ----
+            // ---- Build one obstacle per other robot excpet ourselfs (same style as pedestrian sim) ----
             obstacle_array_msg.obstacles.emplace_back();
             obstacle_array_msg.obstacles.back().id = prediction.id;
 
@@ -297,7 +300,7 @@ CentralAggregator::robotsToObstacleArray()
             obstacle_array_msg.obstacles.back().probabilities.push_back(1.0);
         }
 
-        obstacle_array_msg.header.stamp = now;
+        obstacle_array_msg.header.stamp = send_message_time;
         obstacle_array_msg.header.frame_id = _global_frame;
 
         obstacle_array_msg_map[robot_ns] = std::move(obstacle_array_msg);
@@ -311,7 +314,7 @@ CentralAggregator::trajectoriesToObstacleArray()
 {
 
     std::map<std::string, mpc_planner_msgs::ObstacleArray> obstacle_array_msg_map;
-    const ros::Time now = ros::Time::now();
+    const ros::Time send_message_time = ros::Time::now();
 
     for (const auto &robot_ns : _robot_ns_list)
     {
@@ -369,7 +372,7 @@ CentralAggregator::trajectoriesToObstacleArray()
             // Single-mode probability
             obstacle_array_msg.obstacles.back().probabilities.push_back(1.0);
         }
-        obstacle_array_msg.header.stamp = now;
+        obstacle_array_msg.header.stamp = send_message_time;
         obstacle_array_msg.header.frame_id = _global_frame;
 
         obstacle_array_msg_map[robot_ns] = std::move(obstacle_array_msg);
