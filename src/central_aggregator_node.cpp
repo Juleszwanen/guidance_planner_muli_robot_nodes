@@ -53,7 +53,7 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     {
         // create the subscriber string
         const std::string topic_pose = ns + "/output/pose";
-        ROS_INFO_STREAM("Subscribing to: " << topic_pose);
+        LOG_INFO("Subscribing to: " + topic_pose);
         // create the subscriber object, which wille subscribe to each robots output pose
         auto sub_pose_i = nh.subscribe<geometry_msgs::PoseStamped>(topic_pose, 5,
                                                                    boost::bind(&CentralAggregator::poseCallback, this, _1, ns));
@@ -62,7 +62,7 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
 
         // create the subscribers for each trajectory a robot outputs
         const std::string topic_trajectory = ns + "/output/current_trajectory";
-        ROS_INFO_STREAM("Subscribing to: " << topic_trajectory);
+        LOG_INFO("Subscribing to: " + topic_trajectory);
         auto sub_traject_i = nh.subscribe<nav_msgs::Path>(topic_trajectory, 5,
                                                           boost::bind(&CentralAggregator::trajectoryCallback, this, _1, ns));
         this->_robot_trajectory_sub_list.push_back(sub_traject_i);
@@ -71,6 +71,7 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     // Create all the publisher objects and store them in _obs_pub_by_ns <- of type map
     _obs_pub_by_ns.clear();
     _obs_trajectory_pub_by_ns.clear();
+
     for (const auto &ns : _robot_ns_list)
     {
         // Create the publishers which are for the constant velocity obstacles
@@ -169,6 +170,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
                                            const std::string ns)
 {
     const std::string profiling_name = "CentralAggregator::" + ns + "_" + "trajectoryCallback";
+    LOG_DEBUG(profiling_name);
     PROFILE_SCOPE(profiling_name.c_str()); // need to change is to const char * type
 
     // get an alreadu existing RobotPrediction object or create a new instance of RobotPrediction object
@@ -201,8 +203,9 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
 
 void CentralAggregator::timerCallback(const ros::TimerEvent &)
 {
+    LOG_DEBUG("----- timerCallback Central Aggregator -----");
     PROFILE_SCOPE("CentralAggregator::timerCallback");
-    // auto const_obs_array_per_robot = this->robotsToObstacleArray(); uncomment if you want constant prediciton models
+    auto const_obs_array_per_robot = this->robotsToObstacleArray(); // uncomment if you want constant prediciton models
 
     auto trajectory_obs_array_per_robot = this->trajectoriesToObstacleArray();
 
@@ -230,6 +233,8 @@ void CentralAggregator::timerCallback(const ros::TimerEvent &)
         // Publish trajectory-based obstacles to the trajectory obstacles topic
         it_trajectory_obstacle_pub->second.publish(it_trajectory_obstacle_msg->second);
     }
+
+    LOG_DEBUG("----- end timerCallback Central Aggregator -----");
 }
 
 std::map<std::string, mpc_planner_msgs::ObstacleArray>
@@ -340,7 +345,7 @@ CentralAggregator::trajectoriesToObstacleArray()
             // Current pose (k = 0)
             obstacle_array_msg.obstacles.back().pose.position.x = prediction.pos[0](0);
             obstacle_array_msg.obstacles.back().pose.position.y = prediction.pos[0](1);
-            obstacle_array_msg.obstacles.back().pose.position.z = 0.0;
+            obstacle_array_msg.obstacles.back().pose.position.z = 1.0;
             obstacle_array_msg.obstacles.back().pose.orientation =
                 RosTools::angleToQuaternion(prediction.angle[0]);
 
@@ -350,12 +355,12 @@ CentralAggregator::trajectoriesToObstacleArray()
 
             if (prediction.pos.size() > 1)
             {
-                for (size_t i = 1; i < prediction.pos.size(); ++i)
+                for (size_t i = 0; i < prediction.pos.size(); ++i)
                 {
                     gaussian.mean.poses.emplace_back();
                     gaussian.mean.poses.back().pose.position.x = prediction.pos[i](0);
                     gaussian.mean.poses.back().pose.position.y = prediction.pos[i](1);
-                    gaussian.mean.poses.back().pose.position.z = 0.0;
+                    gaussian.mean.poses.back().pose.position.z = 1.0;
                     gaussian.mean.poses.back().pose.orientation =
                         RosTools::angleToQuaternion(prediction.angle[i]);
 
