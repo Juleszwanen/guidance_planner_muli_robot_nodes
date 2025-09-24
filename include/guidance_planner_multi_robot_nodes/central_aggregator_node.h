@@ -45,6 +45,7 @@ struct RobotPrediction
     std::vector<Eigen::Vector2d> vel;
     std::vector<double> major_axis;
     std::vector<double> minor_axis;
+    bool                updated_robot_prediction{false};
 
     RobotPrediction() = default;
 
@@ -100,7 +101,6 @@ private:
     std::string _global_frame{"map"};
     int _robot_prediction_horizon{60};
     double _robot_prediction_step{0.2};
-
     bool _send_info_first_time{false};
 
     // config /runtime

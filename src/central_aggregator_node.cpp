@@ -48,7 +48,6 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
         _profiling_names[ns] = "CentralAggregator::" + ns + "_trajectoryCallback";
     }
     this->initializeSubscribersAndPublishers(nh);
-    
 }
 
 CentralAggregator::~CentralAggregator()
@@ -115,7 +114,7 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     _trajectory_service = nh.advertiseService("get_other_robot_obstacles_srv", &CentralAggregator::trajectoryServiceFunction, this);
     // Start periodic publishing, but why would I periodicly publish this node and not just publish it whenever I want
     _timer = nh.createTimer(
-        ros::Duration(1.0 / std::max(1.0, 20.0)),
+        ros::Duration(1.0 / std::max(1.0, _publish_rate_hz)),
         &CentralAggregator::timerCallback,
         this);
 }
@@ -194,7 +193,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
     LOG_DEBUG(profiling_name);
     PROFILE_SCOPE(profiling_name.c_str());
 
-    // get an alreadu existing RobotPrediction object or create a new instance of RobotPrediction object if the namespace does not yet exist
+    // get an already existing RobotPrediction object or create a new instance of RobotPrediction object if the namespace does not yet exist
     auto &robot_trajectory = _robots_trajectory_predictions[ns];
     if (robot_trajectory.id < 0)
     {
@@ -224,6 +223,9 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
                 // major/minor axes left at defaults (0 → deterministic)
             );
         }
+
+        // Update the boolean that you updated a specific robot_trajectory instance with new data, this is switch to false when the information is republished to the robots
+        robot_trajectory.updated_robot_prediction = true;
     }
 }
 
@@ -349,6 +351,7 @@ void CentralAggregator::populateConstantObstacleArrays(const ros::Time &timestam
 // Performance optimized function that populates pre-allocated trajectory obstacle arrays
 void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timestamp)
 {
+    // For each robot update each obstacle msg
     for (const auto &robot_ns : _robot_ns_list)
     {
         auto &obstacle_array_msg = _trajectory_obs_cache[robot_ns]; // Direct reference to pre-allocated cache
@@ -357,12 +360,13 @@ void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timest
         obstacle_array_msg.header.stamp = timestamp;
         obstacle_array_msg.header.frame_id = _global_frame;
 
+        // Go trough each robot_prediction and build the obstacle message for each respective robot: Ex) given 3 robots in the environment R1, R2, R3 the obstacle_array_msg for R1 should contain only content of R2 en R3
         for (const auto &kv : _robots_trajectory_predictions)
         {
             const std::string &other_ns = kv.first;
             const RobotPrediction &prediction = kv.second;
 
-            // Early filtering for performance
+            // Early filtering for performance, skip ourself
             if (other_ns == robot_ns)
                 continue;
             if (prediction.pos.empty() || prediction.angle.empty())
@@ -374,6 +378,11 @@ void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timest
 
             obstacle.id = prediction.id;
 
+            obstacle.updated_trajectory_prediction = prediction.updated_robot_prediction;
+            if (!prediction.updated_robot_prediction)
+            {
+                LOG_ERROR(other_ns + "Is sending an Old trajectory");
+            }
             // Current pose (k = 0)
             obstacle.pose.position.x = prediction.pos[0](0);
             obstacle.pose.position.y = prediction.pos[0](1);
@@ -411,6 +420,16 @@ void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timest
 
             obstacle.probabilities.push_back(1.0);
         }
+    }
+
+    // For each robot update the robot_prediction boolean so we that we already send this trajecotry to the corresponding robots.
+    // Whe  the timer is quicker then that a robot trajectory is updated when can now.
+    for (auto &kv : _robots_trajectory_predictions)
+    {
+
+        RobotPrediction &prediction = kv.second;
+
+        prediction.updated_robot_prediction = false;
     }
 }
 
