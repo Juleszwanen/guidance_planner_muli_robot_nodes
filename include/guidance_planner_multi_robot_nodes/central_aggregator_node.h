@@ -1,10 +1,10 @@
 #pragma once
 
 #include <mpc_planner_msgs/ObstacleArray.h>
+#include <mpc_planner_msgs/GetOtherTrajectories.h>
 #include <ros_tools/profiling.h>
 #include <ros/ros.h>
 
-#include <std_msgs/Int32.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/Bool.h>
@@ -58,6 +58,16 @@ struct RobotPrediction
         minor_axis.push_back(_minor_axis);
     }
 
+    // Reserve space in all vectors to minimize reallocations
+    void reserve(size_t capacity)
+    {
+        pos.reserve(capacity);
+        angle.reserve(capacity);
+        vel.reserve(capacity);
+        major_axis.reserve(capacity);
+        minor_axis.reserve(capacity);
+    }
+
     // clear everything except the id, because that is not neccessary
     void clearRobotPrediction()
     {
@@ -91,6 +101,8 @@ private:
     int _robot_prediction_horizon{60};
     double _robot_prediction_step{0.2};
 
+    bool _send_info_first_time{false};
+
     // config /runtime
     std::vector<std::string> _robot_ns_list; // List  of robot namespaces, this will be set via a parameter.
 
@@ -98,10 +110,20 @@ private:
     std::vector<ros::Subscriber> _robot_trajectory_sub_list; // List of robot trajectory subscribers
     std::map<std::string, ros::Publisher> _obs_pub_by_ns;    // A dictionary which stores the publisher by namespace,so you can easily retrieve them
     std::map<std::string, ros::Publisher> _obs_trajectory_pub_by_ns;
+
+    ros::ServiceServer _trajectory_service;
     ros::Timer _timer; // publish loop
 
     std::map<std::string, RobotPrediction> _robots_predictions;            // will contain for each robot its prediction over a time horizon. This is filled inside the callback for each robot each time the callback is called
     std::map<std::string, RobotPrediction> _robots_trajectory_predictions; // will contain for each robot the trajectories. This is filled inside the callback for each robot each time the callback is called
+
+    // Performance optimization: Pre-allocated containers to avoid repeated memory allocation in hot path
+    std::map<std::string, mpc_planner_msgs::ObstacleArray> _const_obs_cache;      // Reused for robotsToObstacleArray()
+    std::map<std::string, mpc_planner_msgs::ObstacleArray> _trajectory_obs_cache; // Reused for trajectoriesToObstacleArray()
+
+    // Pre-computed strings to avoid string concatenation in hot path callbacks
+    std::map<std::string, std::string> _profiling_names; // Cache for "CentralAggregator::{ns}_trajectoryCallback"
+
 public:
     explicit CentralAggregator(ros::NodeHandle &nh);
     ~CentralAggregator();
@@ -113,9 +135,14 @@ public:
     void trajectoryCallback(const nav_msgs::Path::ConstPtr &msg, const std::string ns);
     void timerCallback(const ros::TimerEvent &);
 
-    // turn agents into an obstacle array
-    std::map<std::string, mpc_planner_msgs::ObstacleArray> robotsToObstacleArray();
-    std::map<std::string, mpc_planner_msgs::ObstacleArray> trajectoriesToObstacleArray();
+    // Performance optimized versions that populate pre-allocated caches
+    void populateConstantObstacleArrays(const ros::Time &timestamp);
+    void populateTrajectoryObstacleArrays(const ros::Time &timestamp);
+
+    // Updates the obstacle array message only for a specific namespace, this is used by the service server
+    void updateNsTrajectoryObstacleArray(const ros::Time &timestamp, const std::string &robot_ns);
+    bool trajectoryServiceFunction(mpc_planner_msgs::GetOtherTrajectories::Request &req, mpc_planner_msgs::GetOtherTrajectories::Response &response);
+    bool trajectoryServiceTimerFunction(mpc_planner_msgs::GetOtherTrajectories::Request &req, mpc_planner_msgs::GetOtherTrajectories::Response &res);
 
     // get the number behind the jackal namespace so /jackal1 returns 1
     int getJackalNumber(const std::string &ns);
