@@ -57,6 +57,12 @@ add_dependencies(central_aggregator ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin
 target_link_libraries(central_aggregator ${catkin_LIBRARIES})
 
 
+add_executable(test_code_function src/test_code_function.cpp)
+add_dependencies(test_code_function ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(test_code_function ${catkin_LIBRARIES})
+
+
+
 
 
 
