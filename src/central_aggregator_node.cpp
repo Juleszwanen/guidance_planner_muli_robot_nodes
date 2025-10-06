@@ -32,6 +32,7 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
             LOG_INFO("Robot namespace: " + ns_str);
         }
     }
+
     LOG_DIVIDER();
     // Pre-initialize cache containers for performance optimization
     for (const auto &ns : _robot_ns_list)
@@ -46,7 +47,10 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 
         // Pre-compute profiling names to avoid string concatenation in hot path
         _profiling_names[ns] = "CentralAggregator::" + ns + "_trajectoryCallback";
+
+        _robots_objective_reached.insert({ns, false});
     }
+
     this->initializeSubscribersAndPublishers(nh);
 }
 
@@ -69,20 +73,27 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     for (const auto &ns : _robot_ns_list)
     {
         // create the subscriber string
-        const std::string topic_pose = ns + "/output/pose";
-        LOG_INFO("Subscribing to: " + topic_pose);
-        // create the subscriber object, which wille subscribe to each robots output pose
-        auto sub_pose_i = nh.subscribe<geometry_msgs::PoseStamped>(topic_pose, 1,
-                                                                   boost::bind(&CentralAggregator::poseCallback, this, _1, ns));
-        // add the subscriber to the list of subscribers such that the objects are not destroyed
-        this->_robot_pose_sub_list.push_back(sub_pose_i);
+        // const std::string topic_pose = ns + "/output/pose";
+        // LOG_INFO("Subscribing to: " + topic_pose);
+        // // create the subscriber object, which wille subscribe to each robots output pose
+        // auto sub_pose_i = nh.subscribe<geometry_msgs::PoseStamped>(topic_pose, 1,
+        //                                                            boost::bind(&CentralAggregator::poseCallback, this, _1, ns));
+        // // add the subscriber to the list of subscribers such that the objects are not destroyed
+        // this->_robot_pose_sub_list.push_back(sub_pose_i);
 
-        // create the subscribers for each trajectory a robot outputs
-        const std::string topic_trajectory = ns + "/output/current_trajectory";
-        LOG_INFO("Subscribing to: " + topic_trajectory);
-        auto sub_traject_i = nh.subscribe<nav_msgs::Path>(topic_trajectory, 1,
-                                                          boost::bind(&CentralAggregator::trajectoryCallback, this, _1, ns));
-        this->_robot_trajectory_sub_list.push_back(sub_traject_i);
+        // // create the subscribers for each trajectory a robot outputs
+        // const std::string topic_trajectory = ns + "/output/current_trajectory";
+        // LOG_INFO("Subscribing to: " + topic_trajectory);
+        // auto sub_traject_i = nh.subscribe<nav_msgs::Path>(topic_trajectory, 1,
+        //                                                   boost::bind(&CentralAggregator::trajectoryCallback, this, _1, ns));
+        // this->_robot_trajectory_sub_list.push_back(sub_traject_i);
+
+        const std::string topic_objective_reached = ns + "/events/objective_reached";
+        LOG_INFO(ros::this_node::getName() + " subscribing to: " + topic_objective_reached);
+        auto sub_objective_reached_i = nh.subscribe<std_msgs::Bool>(topic_objective_reached, 1,
+                                                                    boost::bind(&CentralAggregator::objectiveReachedCallback, this, _1, ns));
+
+        this->_robot_objective_reached_sub_list.push_back(sub_objective_reached_i);
     }
 
     // Create all the publisher objects and store them in _obs_pub_by_ns <- of type map
@@ -90,18 +101,22 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     _obs_trajectory_pub_by_ns.clear();
 
     // Jules: uncomment if you want to use the server style communication
-    for (const auto &ns : _robot_ns_list)
-    {
-        // Create the publishers which are for the constant velocity obstacles
-        const std::string output_topic = ns + "/input/obstacles";
-        LOG_INFO("Advertising: " + output_topic);
-        _obs_pub_by_ns[ns] = nh.advertise<mpc_planner_msgs::ObstacleArray>(output_topic, 1);
+    // for (const auto &ns : _robot_ns_list)
+    // {
+    //     // Create the publishers which are for the constant velocity obstacles
+    //     const std::string output_topic = ns + "/input/obstacles";
+    //     LOG_INFO("Advertising: " + output_topic);
+    //     _obs_pub_by_ns[ns] = nh.advertise<mpc_planner_msgs::ObstacleArray>(output_topic, 1);
 
-        // create the publishers which are responsible for trajectory obstacles
-        const std::string output_trajectory_topic = ns + "/input/trajectory_obstacles";
-        LOG_INFO("Advertising: " + output_trajectory_topic);
-        _obs_trajectory_pub_by_ns[ns] = nh.advertise<mpc_planner_msgs::ObstacleArray>(output_trajectory_topic, 1);
-    }
+    //     // create the publishers which are responsible for trajectory obstacles
+    //     const std::string output_trajectory_topic = ns + "/input/trajectory_obstacles";
+    //     LOG_INFO("Advertising: " + output_trajectory_topic);
+    //     _obs_trajectory_pub_by_ns[ns] = nh.advertise<mpc_planner_msgs::ObstacleArray>(output_trajectory_topic, 1);
+    // }
+
+    const std::string all_robots_reached_objective_topic = "all_robots_reached_objective";
+    LOG_INFO("Advertising: " + all_robots_reached_objective_topic);
+    _objectives_reached_pub = nh.advertise<std_msgs::Bool>(all_robots_reached_objective_topic, 1);
 
     // Optionally read params (keep your defaults if not set)
     nh.param("publish_rate_hz", _publish_rate_hz, _publish_rate_hz);
@@ -111,12 +126,13 @@ void CentralAggregator::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
     nh.param("robot_prediction_step", _robot_prediction_step, _robot_prediction_step);
 
     //
-    _trajectory_service = nh.advertiseService("get_other_robot_obstacles_srv", &CentralAggregator::trajectoryServiceFunction, this);
+    // _trajectory_service = nh.advertiseService("get_other_robot_obstacles_srv", &CentralAggregator::trajectoryServiceFunction, this);
+
     // Start periodic publishing, but why would I periodicly publish this node and not just publish it whenever I want
-    _timer = nh.createTimer(
-        ros::Duration(1.0 / std::max(1.0, _publish_rate_hz)),
-        &CentralAggregator::timerCallback,
-        this);
+    // _timer = nh.createTimer(
+    //     ros::Duration(1.0 / std::max(1.0, 20.0)),
+    //     &CentralAggregator::timerCallback,
+    //     this);
 }
 
 // this callback fills the map/dictionary with prediction objects per robot
@@ -193,7 +209,7 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
     LOG_DEBUG(profiling_name);
     PROFILE_SCOPE(profiling_name.c_str());
 
-    // get an already existing RobotPrediction object or create a new instance of RobotPrediction object if the namespace does not yet exist
+    // get an alreadu existing RobotPrediction object or create a new instance of RobotPrediction object if the namespace does not yet exist
     auto &robot_trajectory = _robots_trajectory_predictions[ns];
     if (robot_trajectory.id < 0)
     {
@@ -223,9 +239,6 @@ void CentralAggregator::trajectoryCallback(const nav_msgs::Path::ConstPtr &msg,
                 // major/minor axes left at defaults (0 → deterministic)
             );
         }
-
-        // Update the boolean that you updated a specific robot_trajectory instance with new data, this is switch to false when the information is republished to the robots
-        robot_trajectory.updated_robot_prediction = true;
     }
 }
 
@@ -272,6 +285,27 @@ void CentralAggregator::timerCallback(const ros::TimerEvent &)
     LOG_DEBUG("----- end timerCallback Central Aggregator -----");
 }
 
+void CentralAggregator::objectiveReachedCallback(const std_msgs::Bool::ConstPtr &msg, const std::string ns)
+{
+    bool reached_objective = msg->data;
+    if (!reached_objective)
+    {
+        LOG_ERROR(ns + " sends to CentralAggregator that it has reached its objective but the message contains false, something is wrong.. data: " + std::to_string(reached_objective));
+        return;
+    }
+
+    _robots_objective_reached[ns] = true;
+    if (allRobotsReachedObjective())
+    {
+        std_msgs::Bool event;
+        event.data = true;
+        _objectives_reached_pub.publish(event);
+        LOG_INFO("All Robots have reached their objective, time to reverse paths and start again.........");
+        LOG_DIVIDER();
+        resetRobotsObjectiveReached();
+    }
+}
+
 int CentralAggregator::getJackalNumber(const std::string &ns)
 {
     // Handle both "/jackalX" and "jackalX" formats
@@ -281,6 +315,29 @@ int CentralAggregator::getJackalNumber(const std::string &ns)
         return std::stoi(ns.substr(6)); // skip "jackal"
 }
 
+bool CentralAggregator::allRobotsReachedObjective()
+{
+    bool all_robots_reached_objective = true;
+    for (const auto [ns, reach_objective_bool] : _robots_objective_reached)
+    {
+        if (!reach_objective_bool)
+        {
+            LOG_DEBUG(ns + " has not reached its objective yet");
+            all_robots_reached_objective = false;
+            return all_robots_reached_objective;
+        }
+    }
+
+    return all_robots_reached_objective;
+}
+
+void CentralAggregator::resetRobotsObjectiveReached()
+{
+    for (auto &[ns, reach_objective_bool] : _robots_objective_reached)
+    {
+        reach_objective_bool = false;
+    }
+}
 // Performance optimized function that populates pre-allocated constant obstacle arrays
 void CentralAggregator::populateConstantObstacleArrays(const ros::Time &timestamp)
 {
@@ -351,7 +408,6 @@ void CentralAggregator::populateConstantObstacleArrays(const ros::Time &timestam
 // Performance optimized function that populates pre-allocated trajectory obstacle arrays
 void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timestamp)
 {
-    // For each robot update each obstacle msg
     for (const auto &robot_ns : _robot_ns_list)
     {
         auto &obstacle_array_msg = _trajectory_obs_cache[robot_ns]; // Direct reference to pre-allocated cache
@@ -360,13 +416,12 @@ void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timest
         obstacle_array_msg.header.stamp = timestamp;
         obstacle_array_msg.header.frame_id = _global_frame;
 
-        // Go trough each robot_prediction and build the obstacle message for each respective robot: Ex) given 3 robots in the environment R1, R2, R3 the obstacle_array_msg for R1 should contain only content of R2 en R3
         for (const auto &kv : _robots_trajectory_predictions)
         {
             const std::string &other_ns = kv.first;
             const RobotPrediction &prediction = kv.second;
 
-            // Early filtering for performance, skip ourself
+            // Early filtering for performance
             if (other_ns == robot_ns)
                 continue;
             if (prediction.pos.empty() || prediction.angle.empty())
@@ -378,11 +433,6 @@ void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timest
 
             obstacle.id = prediction.id;
 
-            obstacle.updated_trajectory_prediction = prediction.updated_robot_prediction;
-            if (!prediction.updated_robot_prediction)
-            {
-                LOG_ERROR(other_ns + "Is sending an Old trajectory");
-            }
             // Current pose (k = 0)
             obstacle.pose.position.x = prediction.pos[0](0);
             obstacle.pose.position.y = prediction.pos[0](1);
@@ -420,16 +470,6 @@ void CentralAggregator::populateTrajectoryObstacleArrays(const ros::Time &timest
 
             obstacle.probabilities.push_back(1.0);
         }
-    }
-
-    // For each robot update the robot_prediction boolean so we that we already send this trajecotry to the corresponding robots.
-    // Whe  the timer is quicker then that a robot trajectory is updated when can now.
-    for (auto &kv : _robots_trajectory_predictions)
-    {
-
-        RobotPrediction &prediction = kv.second;
-
-        prediction.updated_robot_prediction = false;
     }
 }
 
