@@ -62,7 +62,9 @@ add_dependencies(test_code_function ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin
 target_link_libraries(test_code_function ${catkin_LIBRARIES})
 
 
-
+add_executable(non_com_cv_robot src/non_com_cv_robot.cpp)
+add_dependencies(non_com_cv_robot ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(non_com_cv_robot ${catkin_LIBRARIES})
 
 
 
