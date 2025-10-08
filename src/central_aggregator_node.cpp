@@ -37,6 +37,7 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
     // Pre-initialize cache containers for performance optimization
     for (const auto &ns : _robot_ns_list)
     {
+
         // Initialize empty obstacle arrays for each robot namespace
         _const_obs_cache[ns] = mpc_planner_msgs::ObstacleArray();
         _trajectory_obs_cache[ns] = mpc_planner_msgs::ObstacleArray();
@@ -48,7 +49,15 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
         // Pre-compute profiling names to avoid string concatenation in hot path
         _profiling_names[ns] = "CentralAggregator::" + ns + "_trajectoryCallback";
 
-        _robots_objective_reached.insert({ns, false});
+        /** @note /jackal6 is the non communicating robto */
+        if (ns == "/jackal6" || ns == "jackal6")
+        {
+            continue;
+        }
+        else
+        {
+            _robots_objective_reached.insert({ns, false});
+        }
     }
 
     this->initializeSubscribersAndPublishers(nh);
