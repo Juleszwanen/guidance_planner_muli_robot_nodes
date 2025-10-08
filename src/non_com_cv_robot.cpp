@@ -1,4 +1,5 @@
 #include <guidance_planner_multi_robot_nodes/non_com_cv_robot.h>
+#include <mpc_planner/data_preparation.h>
 #include <ros_tools/logging.h>
 #include <ros_tools/convertions.h>
 #include <ros_tools/math.h>
@@ -11,15 +12,18 @@
 #include <cmath>
 #include <algorithm>
 #include <boost/bind.hpp>
+#include <Eigen/Dense>
 
 NonComCVRobot::NonComCVRobot(ros::NodeHandle &nh) : _nh(nh)
 {
     LOG_INFO(_ego_robot_ns + " Starting the a non communicating constant velocity robot");
     _ego_robot_ns = ros::this_node::getNamespace();
+    // Load configuration before constructing Planner
+    
     // Initialize subscribers and publishers
     initializeSubscribersAndPublishers(nh);
 
-    _startup_timer.setDuration(2.0);
+    _startup_timer.setDuration(4.0);
     _startup_timer.start();
 
     // Start control timer
@@ -106,10 +110,6 @@ void NonComCVRobot::loop(const ros::TimerEvent & /*event*/)
 
     geometry_msgs::Twist cmd;
     cmd.linear.x = 0.0;
-    // cmd.linear.y = 0.0;
-    // cmd.linear.z = 0.0;
-    // cmd.angular.x = 0.0;
-    // cmd.angular.y = 0.0;
     cmd.angular.z = 0.0;
 
     // Check if we have a valid reference path
@@ -147,6 +147,16 @@ void NonComCVRobot::loop(const ros::TimerEvent & /*event*/)
 
     // Publish command
     _cmd_pub.publish(cmd);
+
+    // Create and publish trajectory prediction based on the command we just calculated
+    if (!_state.reference_path.empty())
+    {
+        auto prediction = CreateConstantVelocityPrediction(cmd);
+        if (!prediction.modes[0].empty())
+        {
+            publishTrajectory(prediction);
+        }
+    }
 }
 
 bool NonComCVRobot::objectiveReached()
@@ -308,6 +318,102 @@ int NonComCVRobot::findLookaheadPoint(int start_idx, double lookahead_distance)
 
     // If no point found at lookahead distance, return the last point
     return static_cast<int>(_state.reference_path.x.size() - 1);
+}
+
+MPCPlanner::Prediction NonComCVRobot::CreateConstantVelocityPrediction(const geometry_msgs::Twist &cmd)
+{
+    // Use the commanded velocities to predict future motion
+    double predicted_vx = cmd.linear.x; // Forward velocity
+
+    // Calculate future orientation based on current orientation and angular velocity
+    double current_psi = _state.get("psi");
+
+    // Create prediction with integrated motion model
+    MPCPlanner::Prediction prediction;
+    double noise = 0.;
+
+    // Always use deterministic prediction for simplicity
+    prediction = MPCPlanner::Prediction(MPCPlanner::PredictionType::DETERMINISTIC);
+
+    // Predict motion step by step with proper dynamics
+    double pos_x = _state.get("x");
+    double pos_y = _state.get("y");
+    double psi = current_psi;
+
+    // Apply one step of angular velocity change, then assume straight motion
+    psi += cmd.angular.z * _integrator_step;
+    double global_vx = predicted_vx * std::cos(psi);
+    double global_vy = predicted_vx * std::sin(psi);
+
+    for (int i = 0; i < _N; i++)
+    {
+        /** @note Hier mee gaan wij ervan uit dat de hoeksnelheid geleidelijk naar 0 gaat */
+        // double decaying_angular = cmd.angular.z * exp(-i * 0.1);
+        // psi += decaying_angular * _integrator_step;
+
+        // Calculate position for this time step
+        // At i=0: we're still at starting position
+        // At i=1: we've moved one time step, etc.
+        double pos_x_new = pos_x + i * global_vx * _integrator_step;
+        double pos_y_new = pos_y + i * global_vy * _integrator_step;
+
+        // Add prediction step with correct orientation
+        prediction.modes[0].push_back(MPCPlanner::PredictionStep(
+            Eigen::Vector2d(pos_x_new, pos_y_new), psi, noise, noise));
+    }
+
+    return prediction;
+}
+
+void NonComCVRobot::publishTrajectory(const MPCPlanner::Prediction &prediction)
+{
+    // Build trajectory message for other robots
+    mpc_planner_msgs::ObstacleGMM ego_robot_trajectory_as_obstacle;
+    ego_robot_trajectory_as_obstacle.id = _ego_robot_id; // Use a default ID or make configurable
+    ego_robot_trajectory_as_obstacle.pose.position.x = _state.get("x");
+    ego_robot_trajectory_as_obstacle.pose.position.y = _state.get("y");
+    ego_robot_trajectory_as_obstacle.pose.orientation = RosTools::angleToQuaternion(_state.get("psi"));
+    ego_robot_trajectory_as_obstacle.gaussians.emplace_back();
+
+    auto &gaussian = ego_robot_trajectory_as_obstacle.gaussians.back();
+    auto ros_time = ros::Time::now();
+    gaussian.mean.header.stamp = ros_time;
+    gaussian.mean.header.frame_id = _global_frame;
+
+    const auto &mode = prediction.modes[0];
+    if (mode.size() > 0)
+    {
+        gaussian.mean.poses.reserve(mode.size());
+        gaussian.major_semiaxis.reserve(mode.size());
+        gaussian.minor_semiaxis.reserve(mode.size());
+
+        for (size_t k = 0; k < mode.size(); ++k)
+        {
+            const auto &prediction_step = mode[k];
+            gaussian.mean.poses.emplace_back();
+            auto &pose = gaussian.mean.poses.back();
+            pose.pose.position.x = prediction_step.position(0);
+            pose.pose.position.y = prediction_step.position(1);
+            pose.pose.position.z = k * _integrator_step; // Store timing in z-component
+
+            // Use the predicted orientation from the prediction step
+            pose.pose.orientation = RosTools::angleToQuaternion(prediction_step.angle);
+            pose.header.stamp = ros_time + ros::Duration(k * _integrator_step);
+
+            // Add dummy semiaxis values
+            gaussian.major_semiaxis.push_back(-1); // Robot size approximation
+            gaussian.minor_semiaxis.push_back(-1);
+        }
+
+        LOG_DEBUG(_ego_robot_ns + ": Publishing trajectory with " + std::to_string(gaussian.mean.poses.size()) + " poses");
+    }
+    else
+    {
+        LOG_WARN(_ego_robot_ns + ": Empty trajectory prediction!");
+    }
+
+    // Publish the trajectory to other robots
+    _cv_trajectory_pub.publish(ego_robot_trajectory_as_obstacle);
 }
 
 int main(int argc, char *argv[])

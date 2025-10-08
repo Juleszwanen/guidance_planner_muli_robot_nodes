@@ -84,7 +84,7 @@ class NonComCVRobot
 {
 private:
     double _constance_velocity{0.5};
-    double integrator_step{0.2};
+    double _integrator_step{0.2};
     double _N{30};
     double _goal_tolerance{0.5};
 
@@ -93,6 +93,7 @@ private:
     CvRobotState _state;
 
     std::string _ego_robot_ns{"/jackal6"};
+    int _ego_robot_id{6};
     std::string _global_frame{"map"};
 
     ros::NodeHandle _nh;
@@ -122,6 +123,9 @@ public:
     void purePursuitController(geometry_msgs::Twist &cmd);
     int findClosestPointOnPath();
     int findLookaheadPoint(int start_idx, double lookahead_distance);
+    MPCPlanner::Prediction CreateConstantVelocityPrediction(const geometry_msgs::Twist &cmd);
+    void publishTrajectory(const MPCPlanner::Prediction &prediction);
+    MPCPlanner::Prediction CreateConstantVelocityPrediction();
 
 public:
     NonComCVRobot(ros::NodeHandle &nh);
