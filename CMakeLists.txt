@@ -69,5 +69,16 @@ add_executable(non_com_cv_robot src/non_com_cv_robot.cpp)
 add_dependencies(non_com_cv_robot ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(non_com_cv_robot ${catkin_LIBRARIES})
 
+#############
+## Install ##
+#############
+
+# Install Python scripts
+catkin_install_python(PROGRAMS
+  scripts/middleware_publisher.py
+  scripts/middleware_subscriber.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 
 

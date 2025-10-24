@@ -2,6 +2,7 @@
 import rospy, zmq, json
 from genpy import Message
 from std_msgs.msg import String
+from io import StringIO, BytesIO
 
 TOPIC_OUT = "/jackal1/trajectory_test_with_string"   # absolute topic is safer
 ZMQ_BIND  = "tcp://*:3001"                           # bind on all ifaces, port 3001
@@ -15,7 +16,9 @@ pub.bind(ZMQ_BIND)          # << you must bind before sending
 
 def to_bytes(msg: Message) -> bytes:
     # Works for any ROS message, including std_msgs/String
-    return msg.serialize()
+    buff = BytesIO()
+    msg.serialize(buff)
+    return buff.getvalue()
 
 seq = 0
 def cb(msg: String):
