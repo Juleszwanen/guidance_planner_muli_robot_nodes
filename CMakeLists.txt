@@ -14,6 +14,8 @@ endif()
 ## is used, also find other catkin packages
 set(DEPENDENCIES
   roscpp
+  rospy
+  std_msgs
   mpc_planner
   mpc_planner_msgs
   mpc_planner_modules
@@ -24,6 +26,7 @@ set(DEPENDENCIES
   nav_msgs
   dynamic_reconfigure
   tf2_ros
+  
 )
 
 find_package(catkin REQUIRED COMPONENTS

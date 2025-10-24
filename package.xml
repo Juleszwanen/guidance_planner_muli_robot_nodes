@@ -50,6 +50,7 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
 
+  <depend>rospy</depend>
   <depend>roscpp</depend>
   <depend>mpc_planner</depend>
   <depend>mpc_planner_msgs</depend>
@@ -57,6 +58,7 @@
   <depend>mpc_planner_solver</depend>
   <depend>mpc_planner_util</depend>
   <depend>mpc_planner_types</depend>
+  <depend>std_msgs</depend>
   
   <depend>ros_tools</depend>
   <depend>dynamic_reconfigure</depend>
