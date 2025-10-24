@@ -9,6 +9,7 @@ FILTER = b"/jackal1/trajectory_test_with_string"
 rospy.init_node("bridge_b_sub")
 
 out_pub = rospy.Publisher("/remote/jackal1/trajectory_test_with_string", String, queue_size=5)
+# out_pub.publish(String(data='hoi'))
 
 ctx = zmq.Context.instance()
 sub = ctx.socket(zmq.SUB)
@@ -24,6 +25,7 @@ while not rospy.is_shutdown():
         # meta = json.loads(meta_b.decode())  # if you need it
         msg = String()
         msg.deserialize(payload)
+        print(msg)
         out_pub.publish(msg)
     except zmq.Again:
         rate.sleep()
