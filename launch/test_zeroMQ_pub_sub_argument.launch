@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Declare command line argument -->
+    <arg name="command_line_jackal_name" default="jackal1" doc="Name of the jackal robot (e.g., jackal1, jackal2, etc.)"/>
+    
+    <!-- Load configuration files -->
+    <rosparam command="load" file="$(find bring_up_multi_robot_scenarios)/config/multi_robot_settings.yaml"/>
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/network.yaml"/>
+    
+    <group ns="$(arg command_line_jackal_name)">
+        <!-- value WITHOUT leading slash; we add it when passing to xacro -->
+        <arg name="robot_ns" default="/$(arg command_line_jackal_name)"/>
+
+        <node pkg="guidance_planner_multi_robot_nodes" type="middleware_publisher_node.py" name="middleware_publisher_node" required="false" respawn="false" output="screen"/>
+        <node pkg="guidance_planner_multi_robot_nodes" type="middleware_subscriber_node.py" name="middleware_subscriber_node" required="false" respawn="false" output="screen"/>
+    </group>
+
+    
+</launch>

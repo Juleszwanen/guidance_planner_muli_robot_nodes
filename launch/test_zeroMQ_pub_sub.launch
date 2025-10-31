@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Load configuration files -->
+    <rosparam command="load" file="$(find bring_up_multi_robot_scenarios)/config/multi_robot_settings.yaml"/>
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/network.yaml"/>
+    
+    <group ns="jackal1">
+        <!-- value WITHOUT leading slash; we add it when passing to xacro -->
+        <arg name="robot_ns" default="/jackal1"/>
+
+        <node pkg="guidance_planner_multi_robot_nodes" type="middleware_publisher_node.py" name="middleware_publisher_node" required="false" respawn="false" output="screen"/>
+        <node pkg="guidance_planner_multi_robot_nodes" type="middleware_subscriber_node.py" name="middleware_subscriber_node" required="false" respawn="false" output="screen"/>
+    </group>
+
+    <group ns="jackal2">
+        <!-- value WITHOUT leading slash; we add it when passing to xacro -->
+        <arg name="robot_ns" default="/jackal2"/>
+
+        <node pkg="guidance_planner_multi_robot_nodes" type="middleware_publisher_node.py" name="middleware_publisher_node" required="false" respawn="false" output="screen"/>
+        <node pkg="guidance_planner_multi_robot_nodes" type="middleware_subscriber_node.py" name="middleware_subscriber_node" required="false" respawn="false" output="screen"/>
+    </group>
+</launch>

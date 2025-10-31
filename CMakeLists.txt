@@ -75,8 +75,11 @@ target_link_libraries(non_com_cv_robot ${catkin_LIBRARIES})
 
 # Install Python scripts
 catkin_install_python(PROGRAMS
-  scripts/middleware_publisher.py
-  scripts/middleware_subscriber.py
+  # scripts/middleware_ros_to_zeroMQ_publisher.py
+  # scripts/middleware_zeroMQ_to_ros_subscriber.py
+  scripts/middleware_publisher_node.py
+  scripts/middleware_subscriber_node.py
+  
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
