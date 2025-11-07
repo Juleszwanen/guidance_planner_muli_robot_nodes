@@ -14,13 +14,13 @@ if __name__ == "__main__":
         rospy.init_node('middleware_publisher')
         middleware_pub = MiddleWarePublisher()
         
-        rospy.loginfo(f"{middleware_pub.get_namespace()}: MiddleWare Publisher node started")
+        rospy.loginfo(f"{middleware_pub._ego_robot_ns}: MiddleWare Publisher node started")
         rospy.spin()
         
     except rospy.ROSInterruptException:
-        rospy.loginfo(f"{middleware_pub.get_namespace()} MiddleWare Publisher node interrupted")
+        rospy.loginfo(f"{middleware_pub._ego_robot_ns} MiddleWare Publisher node interrupted")
     except Exception as e:
-        rospy.logerr(f"{middleware_pub.get_namespace()} MiddleWare Publisher node failed: {e}")
+        rospy.logerr(f"{middleware_pub._ego_robot_ns} MiddleWare Publisher node failed: {e}")
     finally:
         if 'middleware_pub' in locals():
             middleware_pub.cleanup()

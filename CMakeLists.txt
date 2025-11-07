@@ -79,6 +79,8 @@ catkin_install_python(PROGRAMS
   # scripts/middleware_zeroMQ_to_ros_subscriber.py
   scripts/middleware_publisher_node.py
   scripts/middleware_subscriber_node.py
+  scripts/middleware_ros_to_zermoMQ_central_agg_pub.py
+  scripts/middleware_zermoMQ_to_ros_central_agg_sub.py
   
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

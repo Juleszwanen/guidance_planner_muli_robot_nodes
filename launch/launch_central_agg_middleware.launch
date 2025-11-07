@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml"/>
+    
+    <node pkg="guidance_planner_multi_robot_nodes" type="central_aggregator" name="central_aggregator" output="screen">
+    </node>
+
+    <node pkg="guidance_planner_multi_robot_nodes" type="middleware_ros_to_zermoMQ_central_agg_pub.py" name="central_agg_middleware_ros_to_zermoMQ_central_agg_pub" output="screen">        
+    </node>
+
+    <node pkg="guidance_planner_multi_robot_nodes" type="middleware_zermoMQ_to_ros_central_agg_sub.py" name="central_agg_middleware_zermoMQ_to_ros_central_agg_sub" output="screen">        
+    </node>
+
+</launch>

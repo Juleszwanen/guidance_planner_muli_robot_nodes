@@ -17,7 +17,7 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
 {
 
     PROFILE_FUNCTION();
-    RosTools::Instrumentor::Get().BeginSession("guidance_planner_multi_robot_nodes");
+    RosTools::Instrumentor::Get().BeginSession("central_agg_multi_robot_nodes");
     LOG_INFO("STARTING NODE: " + ros::this_node::getName());
 
     if (!nh.getParam("/robot_ns_list", _robot_ns_list))
@@ -303,6 +303,7 @@ void CentralAggregator::objectiveReachedCallback(const std_msgs::Bool::ConstPtr 
         return;
     }
 
+    LOG_WARN("CA NODE received reached objective message from " + ns);
     _robots_objective_reached[ns] = true;
     if (allRobotsReachedObjective())
     {

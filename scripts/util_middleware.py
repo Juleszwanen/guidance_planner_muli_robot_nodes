@@ -7,6 +7,8 @@ def extractRobotIdFromNamespace(_ego_robot_ns):
             return int(_ego_robot_ns[-2])
         else:
             return int(_ego_robot_ns[-1])
+    elif _ego_robot_ns[0] == "/" and _ego_robot_ns[-1].isdigit():
+        return int(_ego_robot_ns[-1])
     else:
         return -999
     

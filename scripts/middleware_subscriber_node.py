@@ -15,7 +15,7 @@ if __name__ == "__main__":
         rospy.init_node('middleware_subscriber')
         middleware_sub = MiddleWareSubscriber()
         
-        rospy.loginfo(f"{middleware_sub.get_namespace()}: MiddleWare Subscriber node started")
+        rospy.loginfo(f"{middleware_sub._ego_robot_ns}: MiddleWare Subscriber node started")
         rospy.spin()
         
     except rospy.ROSInterruptException:

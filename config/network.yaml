@@ -1,13 +1,14 @@
 
 /jackal1:
     network:
-        publisher_end_point: "tcp://192.168.0.99:3001"
+        publisher_end_point: "tcp://192.168.0.99:3001"   
 /jackal2:
     network:
-        publisher_end_point: "tcp://192.168.0.99:3002"
+        publisher_end_point: "tcp://192.168.0.99:3002"   
 # /jackal3:
 #     network:
 #         publisher_end_point: "tcp://192.168.0.99:3003"
+/central_aggregator:
+    network:
+        publisher_end_point: "tcp://192.168.0.99:3009"
 
-
-    
