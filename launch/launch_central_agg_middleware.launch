@@ -11,5 +11,8 @@
 
     <node pkg="guidance_planner_multi_robot_nodes" type="middleware_zermoMQ_to_ros_central_agg_sub.py" name="central_agg_middleware_zermoMQ_to_ros_central_agg_sub" output="screen">        
     </node>
-
+    
+    <node pkg="rqt_robot_steering" type="rqt_robot_steering" name="rqt_robot_steering">
+        
+    </node>
 </launch>

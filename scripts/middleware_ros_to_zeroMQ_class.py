@@ -7,6 +7,7 @@ from io import BytesIO
 from util_middleware import extractRobotIdFromNamespace, identifyOtherRobotNamespaces
 from mpc_planner_msgs.msg import ObstacleGMM
 from std_msgs.msg import Bool
+from geometry_msgs.msg import Twist
 from rosbridge_library.internal import message_conversion
 import threading
 
@@ -200,7 +201,8 @@ class MiddleWareSubscriber:
         # Create ROS publishers for each other robot
         self._other_robot_ros_publisher_dict = self.create_other_robot_trajectory_ros_publishers()
         self._central_aggregator_ros_publisher = rospy.Publisher("/all_robots_reached_objective", Bool, queue_size=10)
-
+        self._dead_man_switch_ros_publisher = rospy.Publisher("/jackal_deadman_switch", Twist, queue_size=10)
+        
         # Setup ZeroMQ subscriber endpoints
         self._other_robot_subscriber_endpoints = self.get_other_robot_subscriber_endpoints()
         self._central_aggregator_endpoint      = self.get_central_aggregator_endpoint()
@@ -290,6 +292,10 @@ class MiddleWareSubscriber:
             self.sub_socket.setsockopt(zmq.SUBSCRIBE, global_objective_topic.encode())
             rospy.loginfo(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Subscribed to ZeroMQ global objective topic: {global_objective_topic}")
 
+            # Subscribe to the global deadman switch topic from central aggregator
+            deadman_switch_topic = "/jackal_deadman_switch"
+            self.sub_socket.setsockopt(zmq.SUBSCRIBE, deadman_switch_topic.encode())
+            rospy.loginfo(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Subscribed to ZeroMQ deadman switch topic: {deadman_switch_topic}")
             
             # Connect to all other robot endpoints
             for endpoint in self._other_robot_subscriber_endpoints:
@@ -353,6 +359,23 @@ class MiddleWareSubscriber:
         except Exception as e:
             rospy.logerr(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Failed to handle objective reached message: {e}")
 
+    def _handle_deadman_switch_message(self, sender_ns, msg_bytes, metadata, topic):
+        """Handle deadman switch messages."""
+        try:
+            deadman_msg = self.from_bytes(msg_bytes, Twist)
+            
+            # Determine if this is from central aggregator
+            if topic == "/jackal_deadman_switch":
+                # This is from the central aggregator - publish to our local deadman switch topic
+                self._dead_man_switch_ros_publisher.publish(deadman_msg)
+                rospy.logdebug(f"{self._ego_robot_ns}: [ZeroMQ → ROS] Relayed GLOBAL deadman_switch from central aggregator to local ROS (angular.z={deadman_msg.angular.z})")
+            else:
+                # This is from an individual robot - not expected for deadman switch
+                rospy.logwarn(f"{self._ego_robot_ns}: [ZeroMQ → ROS] Received unexpected individual deadman_switch from {sender_ns} on topic {topic} (not relaying)")
+            
+        except Exception as e:
+            rospy.logerr(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Failed to handle deadman_switch message: {e}")
+    
     def message_processing_loop(self):
         """Main loop for processing incoming ZeroMQ messages."""
         rospy.loginfo(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Started message processing loop")
@@ -380,6 +403,8 @@ class MiddleWareSubscriber:
                             self._handle_trajectory_message(sender_ns, msg_bytes, metadata)
                         elif msg_type == "Bool":
                             self._handle_objective_reached_message(sender_ns, msg_bytes, metadata, topic)
+                        elif msg_type == "Deadman":
+                            self._handle_deadman_switch_message(sender_ns, msg_bytes, metadata, topic)
                         else:
                             rospy.logwarn(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Unknown message type received from ZeroMQ: {msg_type}")
                             
@@ -435,7 +460,7 @@ class MiddleWareCentralAggBasePub(MiddleWareCentralAggBase):
         
         # The topic this central aggregator publishes to
         self._ego_node_all_robots_reached_objective_topic = "/all_robots_reached_objective"
-        
+        self._ego_node_jackal_deadman_switch_topic = "/jackal_deadman_switch"
         # Get list of robots to aggregate
         self._robot_ns_list = rospy.get_param("/robot_ns_list", [])
         
@@ -449,6 +474,10 @@ class MiddleWareCentralAggBasePub(MiddleWareCentralAggBase):
             Bool,
             self.aggregate_callback
         )
+
+        self._ego_node_jackal_deadman_switch_subscriber = rospy.Subscriber(self._ego_node_jackal_deadman_switch_topic, 
+                                                                           Twist, 
+                                                                           self.jackal_dead_man_switch)
         
         self.seq = 0
         
@@ -494,6 +523,29 @@ class MiddleWareCentralAggBasePub(MiddleWareCentralAggBase):
         except Exception as e:
             rospy.logerr(f"[Central Aggregator ROS → ZeroMQ Publisher] Failed to relay to ZeroMQ: {e}")
     
+    def jackal_dead_man_switch(self, msg):
+        try:
+            self.seq += 1
+            
+            meta_data = {
+                "type": "Deadman",
+                "seq": self.seq,
+                "stamp": rospy.Time.now().to_sec(),
+                "from": "/central_aggregator"
+            }
+            
+            # Publish via ZeroMQ
+            self.pub_socket.send_multipart([
+                self._ego_node_jackal_deadman_switch_topic.encode(),
+                json.dumps(meta_data).encode(),
+                self.to_bytes(msg)
+            ])
+            
+            rospy.logdebug(f"[Central Aggregator ROS → ZeroMQ] Relayed deadman_switch (angular.z={msg.angular.z}) to ZeroMQ network")
+            
+        except Exception as e:
+            rospy.logerr(f"[Central Aggregator ROS → ZeroMQ Publisher] Failed to relay to ZeroMQ: {e}")
+
     def cleanup(self):
         """Cleanup resources."""
         try:

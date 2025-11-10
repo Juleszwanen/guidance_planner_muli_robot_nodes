@@ -1,0 +1,95 @@
+<?xml version="1.0"?>
+
+<launch>
+
+    <arg name="gui" default="false" />
+    <arg name="project_name" default="" />
+    <!-- <arg name="roadmap" default="maps/mobile_robotics_lab/straight.xml"/> -->
+    <!-- <arg name="roadmap" default="maps/mobile_robotics_lab/diagonal.xml"/> -->
+    <arg name="jackal_name" default="jackal1"/>
+    
+    <!-- Dynamically set the other jackal based on current jackal -->
+    <arg name="other_jackal" value="jackal2" if="$(eval arg('jackal_name') == 'jackal1')"/>
+    <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal3')"/>
+    <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal4')"/>
+
+    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal.xml"          if="$(eval arg('jackal_name') == 'jackal1')"/>
+    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_reversed.xml" if="$(eval arg('jackal_name') == 'jackal2')"/>
+
+    <!-- Direction of experiment: true = forward, false = backward -->
+    
+    <arg name="direction_of_experiment" value="true" if="$(eval arg('jackal_name') == 'jackal1')" />
+    <arg name="direction_of_experiment" value="false" if="$(eval arg('jackal_name') == 'jackal2')" />
+    
+    <param name="forward_experiment" type="bool" value="$(arg direction_of_experiment)"/>
+    
+    <param name="ego_robot_ns" type="string" value="/$(arg jackal_name)" /> 
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml"/>
+    <rosparam command="load" file="$(find mpc_planner_jackal)/config/guidance_planner.yaml"/>
+    <!-- the config/setting.yaml is loaded inside the c++ code -->
+    <node pkg="mpc_planner_jackal" type="jules_ros1_real_jackalplanner" name="jackal_planner" respawn="false" output="screen">
+        <param name="simulation" value="false"/>
+        <remap from="/input/state" to="/$(arg jackal_name)/odometry/filtered"/>
+        <remap from="/input/state_pose" to="/none_state_pose"/>
+        <remap from="/input/goal" to="/roadmap/goal"/>
+        <remap from="/input/reference_path" to="/roadmap/reference"/>
+        <remap from="/input/obstacles_sim" to="/none_obstacles_sim"/>
+        <remap from="/input/obstacles" to="/vicon_util/dynamic_objects"/>
+        <remap from="/input/bluetooth" to="/bluetooth_teleop/joy"/>
+        <remap from="/output/command" to="/cmd_vel"/>
+        
+
+
+        <remap from="/robot_to_robot/output/current_trajectory" to="/$(arg jackal_name)/robot_to_robot/output/current_trajectory"/>
+        <remap from="/events/objective_reached"                 to="/$(arg jackal_name)/events/objective_reached" />
+        <remap from="/output/pose"                              to="/$(arg jackal_name)/output/pose" />
+    </node>
+        
+    <include file="$(find vicon_bridge)/launch/vicon.launch">
+        <arg name="object_names" value="[$(arg jackal_name)]"/>
+        <!-- <arg name="object_names" value="[$(arg jackal_name), dynamic_object1, dynamic_object2, dynamic_object3, dynamic_object5, dingo1, dingo2]"/> -->
+        <arg name="object_msg_types" default="[geometry_msgs/PoseWithCovarianceStamped]"/>
+        <arg name="object_frame_ids" default="[map]"/>
+        <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name)]"/>
+        <!-- <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name), /vicon/dynamic_object1, /vicon/dynamic_object2, /vicon/dynamic_object3, /vicon/dynamic_object5, /vicon/dingo1, /vicon/dingo2]"/> -->
+        <arg name="object_frequency_divider" default="[2]"/>
+    </include>
+    
+
+    <!-- Bundle dynamic obstacles in one convenient message -->
+    <include file="$(find vicon_util)/launch/bundle_obstacles.launch">
+        <arg name="run_ekfs" value="true"/>
+        <arg name="visualize_scene" value="true"/>
+        <arg name="robot_topic" value="$(arg jackal_name)"/>
+        <!-- 5 Objects -->
+        <arg name="dynamic_object_topics" default="[$(arg jackal_name)]"/>
+        <!-- <arg name="dynamic_object_topics" default="[$(arg jackal_name), dynamic_object1, dynamic_object2, dynamic_object3, dingo1, dingo2]"/> -->
+        <!-- 2 Objects -->
+        <!-- <arg name="dynamic_object_topics" default="[$(arg jackal_name), dynamic_object1, dynamic_object2]"/>  -->
+        <arg name="dynamic_object_radius" default="0.4"/>
+        <arg name="static_object_topics" default="[]"/>
+        <arg name="static_object_radius" default="0.3"/>
+        <arg name="static_object_sizes" default="[]"/>
+    </include>
+
+    <include file="$(find jackal_description)/launch/description.launch"/>
+
+
+    <!-- value WITHOUT leading slash; we add it when passing to xacro -->
+    <!-- <arg name="robot_ns" default="/$(arg jackal_name)"/> -->
+
+    <node pkg="guidance_planner_multi_robot_nodes" type="middleware_publisher_node.py" name="middleware_from_ROS_to_ZEROMQ_publisher_node" required="false" respawn="false" output="screen"/>
+    <node pkg="guidance_planner_multi_robot_nodes" type="middleware_subscriber_node.py" name="middleware_from_ZEROMQ_to_ROS_subscriber_node" required="false" respawn="false" output="screen"/>
+
+
+    <include file="$(find roadmap)/launch/roadmap.launch">
+        <arg name="map_file_name" value="$(arg roadmap)"/>
+    </include>
+
+    
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen"/>
+    
+    <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" output="log"/>  -->
+
+</launch>  
