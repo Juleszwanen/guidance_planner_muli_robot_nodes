@@ -235,6 +235,76 @@ Objects are classified into two categories:
 - **Message Type**: `derived_object_msgs/ObjectArray`
 - **Content**: All tracked objects with pose, velocity, and shape information
 
+### Object ID Assignment
+
+**CRITICAL**: The `bundle_obstacles.launch` assigns IDs to objects based on their **position in the `dynamic_object_topics` list** (0-indexed).
+
+#### ID Assignment Rules
+The order in the `dynamic_object_topics` array directly determines the object IDs:
+
+```xml
+<arg name="dynamic_object_topics" default="[$(arg jackal_name), $(arg other_jackal), dynamic_object1]"/>
+```
+
+Results in:
+- `$(arg jackal_name)` → **ID = 0**
+- `$(arg other_jackal)` → **ID = 1**  
+- `dynamic_object1` → **ID = 2**
+
+#### Example from Real System
+Given this configuration:
+```xml
+<arg name="dynamic_object_topics" default="[jackal1, jackal2, dynamic_object1]"/>
+```
+
+The `/vicon_util/dynamic_objects` message will contain:
+```yaml
+objects:
+  - id: 0  # jackal1
+    pose: {...}
+  - id: 1  # jackal2  
+    pose: {...}
+  - id: 2  # dynamic_object1
+    pose: {...}
+```
+
+#### Architectural Convention: Communicating vs Non-Communicating Objects
+
+**IMPORTANT ORDERING CONVENTION**: Always place **communicating robots first**, followed by **non-communicating dynamic objects**.
+
+**Rationale**:
+1. **Communicating robots** (e.g., jackal1, jackal2):
+   - Share trajectory predictions via ROS topics
+   - Processed using trajectory-based obstacle avoidance
+   - Added to `_data.trajectory_dynamic_obstacles` container
+   - Use high-fidelity prediction models
+
+2. **Non-communicating objects** (e.g., dynamic_object1, dynamic_object2):
+   - No trajectory information available
+   - Processed using constant velocity predictions
+   - Added directly to `_data.dynamic_obstacles` container
+   - Use simple CV model from Vicon velocity estimates
+
+**Example Multi-Robot Configuration**:
+```xml
+<!-- CORRECT ORDERING: Robots first, then dynamic objects -->
+<arg name="dynamic_object_topics" default="[jackal1, jackal2, jackal3, dynamic_object1, dynamic_object2]"/>
+```
+Results in:
+- IDs 0-2: Communicating robots (trajectory-based prediction)
+- IDs 3-4: Non-communicating obstacles (CV prediction)
+
+**Why This Matters**:
+- The planner uses object IDs to determine prediction strategy
+- Robot IDs must match trajectory message IDs for correct association
+- Separating communicating/non-communicating objects enables different processing pipelines
+- This convention prevents confusion during multi-robot coordination scenarios
+
+**Warning**: Changing the order breaks the ID mapping and will cause:
+- Trajectory association failures
+- Incorrect obstacle avoidance behavior
+- Robot coordination failures
+
 ### Configuration in ros1_jackal.launch
 
 ```xml
@@ -256,6 +326,7 @@ This configuration:
 - Treats jackal3 as the ego robot (publishes TF)
 - Treats 5 objects as dynamic obstacles (cylinders with 0.4m radius)
 - No static obstacles configured
+- **Object IDs**: jackal3=0, dynamic_object1=1, dynamic_object2=2, ..., dynamic_object5=5
 
 ## Integration with ros1_jackal.launch
 

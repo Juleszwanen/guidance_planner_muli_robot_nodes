@@ -382,9 +382,12 @@ class MiddleWareSubscriber:
         
         while self._running and not rospy.is_shutdown():
             try:
-                if self.sub_socket.poll(timeout=100):  # 100ms timeout
+                # Check if message available (wait max 100ms). Returns True immediately if queue has messages
+                if self.sub_socket.poll(timeout=100):
+                    # Message available - receive immediately without blocking. Gets one complete multipart message from queue
                     multipart_msg = self.sub_socket.recv_multipart(zmq.NOBLOCK)
                     
+                    # Unpack 3-frame message: [topic (filter), metadata (json), message (bytes)]
                     if len(multipart_msg) == 3:
                         topic_bytes, metadata_bytes, msg_bytes = multipart_msg
                         

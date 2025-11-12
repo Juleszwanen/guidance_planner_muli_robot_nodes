@@ -7,6 +7,7 @@ frames/global: "map"
 robot_ns_list: ["/jackal1", "/jackal2"] # This one is when you want three communicating robots
 rqt_dead_man_switch: true # Allow to activate the deadman switch with rqt_steering this node runs inside the ros network of the central aggregator node
 
+
 /jackal1:
     network:
         publisher_end_point: "tcp://192.168.0.99:3001"   
