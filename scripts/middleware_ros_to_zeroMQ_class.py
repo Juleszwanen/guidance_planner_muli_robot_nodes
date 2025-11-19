@@ -10,7 +10,7 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
 from rosbridge_library.internal import message_conversion
 import threading
-
+import time
 
 
 
@@ -128,7 +128,6 @@ class MiddleWarePublisher:
         except Exception as e:
             rospy.logerr(f"{self._ego_robot_ns}: [ROS → ZeroMQ Publisher] Failed to relay trajectory message to ZeroMQ: {e}")
 
-
     def objective_reached_callback(self, msg):
         try:
             # Increment sequence number (fixed: use self.seq)
@@ -148,13 +147,12 @@ class MiddleWarePublisher:
                 json.dumps(meta_data).encode(),
                 self.to_bytes(msg)
             ])
-           
             
-            rospy.loginfo(f"{self._ego_robot_ns}: [ROS → ZeroMQ] Relayed objective_reached (status={msg.data}) to network")
+            
+            rospy.logwarn(f"{self._ego_robot_ns}: [ROS → ZeroMQ] Relayed objective_reached (status={msg.data}) to network")
             
         except Exception as e:
             rospy.logerr(f"{self._ego_robot_ns}: [ROS → ZeroMQ Publisher] Failed to relay objective_reached message to ZeroMQ: {e}")
-
 
     def cleanup(self):
         """Cleanup resources."""
@@ -208,12 +206,8 @@ class MiddleWareSubscriber:
         self._central_aggregator_endpoint      = self.get_central_aggregator_endpoint()
         self.setup_zmq_subscriber()
         
-        # Start message processing thread
+        # Flag for main loop control
         self._running = True
-        
-        self._message_thread = threading.Thread(target=self.message_processing_loop)
-        self._message_thread.daemon = True
-        self._message_thread.start()
         
         rospy.loginfo(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Middleware initialized successfully - Ready to receive ZeroMQ messages and relay to ROS")
 
@@ -382,8 +376,8 @@ class MiddleWareSubscriber:
         
         while self._running and not rospy.is_shutdown():
             try:
-                # Check if message available (wait max 100ms). Returns True immediately if queue has messages
-                if self.sub_socket.poll(timeout=100):
+                # Poll with 100ms timeout to allow checking shutdown condition regularly
+                if self.sub_socket.poll(timeout=20):
                     # Message available - receive immediately without blocking. Gets one complete multipart message from queue
                     multipart_msg = self.sub_socket.recv_multipart(zmq.NOBLOCK)
                     
@@ -420,10 +414,6 @@ class MiddleWareSubscriber:
         """Cleanup resources."""
         try:
             self._running = False
-            
-            # Wait for thread to finish
-            if hasattr(self, '_message_thread') and self._message_thread.is_alive():
-                self._message_thread.join(timeout=1.0)
             
             # Close socket
             self.sub_socket.close()
@@ -575,11 +565,8 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
         # Setup ZeroMQ subscriptions
         self.setup_zmq_subscriber()
         
-        # Start message processing thread
+        # Flag for main loop control
         self._running = True
-        self._message_thread = threading.Thread(target=self.message_processing_loop)
-        self._message_thread.daemon = True
-        self._message_thread.start()
     
     def get_robot_endpoints(self):
         """Get endpoints for all robots."""
@@ -611,17 +598,25 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
     def setup_zmq_subscriber(self):
         """Setup ZeroMQ subscriber."""
         try:
-            # Subscribe to each robot's objective reached topic
+            # Subscribe to topics and connect to endpoints for each robot
             for robot_ns in self._robot_ns_list:
+                # Subscribe to this robot's objective reached topic
                 objective_topic = f"{robot_ns.rstrip('/')}/events/objective_reached"
                 self.sub_socket.setsockopt(zmq.SUBSCRIBE, objective_topic.encode())
                 rospy.loginfo(f"[Central Aggregator ZeroMQ → ROS Subscriber] Subscribed to ZeroMQ topic: {objective_topic}")
-            
-            # Connect to all robot endpoints
-            for endpoint in self._other_robot_subscriber_endpoints:
-                self.sub_socket.connect(endpoint)
-                rospy.loginfo(f"[Central Aggregator ZeroMQ → ROS Subscriber] Connected to ZeroMQ endpoint: {endpoint}")
                 
+                # Get and connect to this robot's endpoint
+                try:
+                    endpoint = rospy.get_param(f"{robot_ns}/network/publisher_end_point", None)
+                    if endpoint:
+                        self.sub_socket.connect(endpoint)
+                        rospy.loginfo(f"[Central Aggregator ZeroMQ → ROS Subscriber] Connected to {robot_ns} at {endpoint}")
+                        time.sleep(0.1)  # Small delay to ensure connection stability
+                    else:
+                        rospy.logwarn(f"[Central Aggregator ZeroMQ → ROS Subscriber] No endpoint found for {robot_ns}")
+                except Exception as e:
+                    rospy.logerr(f"[Central Aggregator ZeroMQ → ROS Subscriber] Failed to connect to {robot_ns}: {e}")
+                time.sleep(0.1)  # Small delay between connections
         except Exception as e:
             rospy.logerr(f"[Central Aggregator ZeroMQ → ROS Subscriber] Setup failed: {e}")
     
@@ -629,15 +624,30 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
         """Process incoming robot objective messages and relay to ROS."""
         while self._running and not rospy.is_shutdown():
             try:
-                if self.sub_socket.poll(timeout=100):
+                # Poll with 100ms timeout to allow checking shutdown condition regularly
+                if self.sub_socket.poll(timeout=20):
                     multipart_msg = self.sub_socket.recv_multipart(zmq.NOBLOCK)
                     
                     if len(multipart_msg) == 3:
                         topic_bytes, metadata_bytes, msg_bytes = multipart_msg
                         
                         topic = topic_bytes.decode()
+                        
+                        # CRITICAL: Only process objective_reached messages, ignore trajectory messages
+                        if "/events/objective_reached" not in topic:
+                            rospy.logdebug(f"[Central Aggregator ZeroMQ → ROS] Ignoring non-objective message on topic: {topic}")
+                            continue
+                        
                         metadata = json.loads(metadata_bytes.decode())
                         sender_ns = metadata.get("from", "unknown")
+                        msg_type = metadata.get("type", "unknown")
+                        
+                        # Verify it's a Bool message (objective_reached should always be Bool)
+                        if msg_type != "Bool":
+                            rospy.logwarn_throttle(5.0, f"[Central Aggregator ZeroMQ → ROS Subscriber] "
+                                                    f"Received unexpected message type '{msg_type}' from {sender_ns} "
+                                                    f"on topic {topic}. Expected 'Bool'. Ignoring...")
+                            continue
                         
                         # Deserialize the Bool message
                         objective_msg = self.from_bytes(msg_bytes, Bool)
@@ -646,7 +656,9 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
                         if sender_ns in self._robots_objective_reached_publisher_dict:
                             self._robots_objective_reached_publisher_dict[sender_ns].publish(objective_msg)
                             rospy.loginfo(f"[Central Aggregator ZeroMQ → ROS] Relayed objective_reached from {sender_ns} to local ROS topic, status: {objective_msg.data}")
-                        
+                        else:
+                            rospy.logwarn(f"[Central Aggregator ZeroMQ → ROS] Received objective_reached from unknown robot {sender_ns}")
+                            
             except zmq.Again:
                 continue
             except Exception as e:
@@ -667,10 +679,6 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
         """Cleanup resources."""
         try:
             self._running = False
-            
-            # Wait for thread to finish
-            if hasattr(self, '_message_thread') and self._message_thread.is_alive():
-                self._message_thread.join(timeout=1.0)
             
             # Close socket
             self.sub_socket.close()

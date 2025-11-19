@@ -47,7 +47,9 @@ if __name__ == "__main__":
         # 3. Enable local aggregation logic to process all robot statuses
         
         rospy.loginfo("[Central Aggregator Subscriber] Node ready - listening for robot objective messages")
-        rospy.spin()
+        
+        # Run message processing loop in main thread (blocking call)
+        middleware_sub.message_processing_loop()
         
     except rospy.ROSInterruptException:
         rospy.loginfo("[Central Aggregator Subscriber] Node interrupted by user")

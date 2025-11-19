@@ -1,7 +1,10 @@
 <?xml version="1.0"?>
 <launch>
 
-    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml"/>
+    <arg name="laptop_name" default="jules"/>
+    
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings_tu_delt_laptop.yaml" if="$(eval arg('laptop_name') == 'tu_delft')"/>
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml" if="$(eval arg('laptop_name') == 'jules')"/>
     
     <node pkg="guidance_planner_multi_robot_nodes" type="central_aggregator" name="central_aggregator" output="screen">
     </node>
@@ -12,7 +15,5 @@
     <node pkg="guidance_planner_multi_robot_nodes" type="middleware_zermoMQ_to_ros_central_agg_sub.py" name="central_agg_middleware_zermoMQ_to_ros_central_agg_sub" output="screen">        
     </node>
     
-    <node pkg="rqt_robot_steering" type="rqt_robot_steering" name="rqt_robot_steering">
-        
-    </node>
+    
 </launch>

@@ -1,0 +1,24 @@
+# robot_ns_list: ["/jackal1", "/jackal2"]
+wait_for_sync: false
+frames/global: "map"
+# goal_tolerance: 0.8
+# robot_ns_list: ["/jackal1", "/jackal2", "/jackal6"] # This one is when you want to use the CV robot
+# robot_ns_list: ["/jackal1", "/jackal2", "/jackal3"] # This one is when you want three communicating robots
+robot_ns_list: ["/jackal1", "/jackal2"] # This one is when you want three communicating robots
+rqt_dead_man_switch: false # Allow to activate the deadman switch with rqt_steering this node runs inside the ros network of the central aggregator node
+jules_controller_deadman_switch: true
+
+/jackal1:
+    network:
+        publisher_end_point: "tcp://192.168.3.56:3001"   
+/jackal2:
+    network:
+        publisher_end_point: "tcp://192.168.3.56:3002"   
+# /jackal3:
+#     network:
+#         publisher_end_point: "tcp://192.168.3.56:3003"
+/central_aggregator:
+    network:
+        publisher_end_point: "tcp://192.168.3.56:3009"
+
+    
