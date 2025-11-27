@@ -5,8 +5,8 @@ frames/global: "map"
 # robot_ns_list: ["/jackal1", "/jackal2", "/jackal6"] # This one is when you want to use the CV robot
 # robot_ns_list: ["/jackal1", "/jackal2", "/jackal3"] # This one is when you want three communicating robots
 robot_ns_list: ["/jackal1", "/jackal2"] # This one is when you want three communicating robots
-rqt_dead_man_switch: true # Allow to activate the deadman switch with rqt_steering this node runs inside the ros network of the central aggregator node
-
+rqt_dead_man_switch: false # Allow to activate the deadman switch with rqt_steering this node runs inside the ros network of the central aggregator node
+jules_controller_deadman_switch: true
 
 /jackal1:
     network:

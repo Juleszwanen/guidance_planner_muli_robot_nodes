@@ -6,9 +6,9 @@
     <arg name="project_name" default="" />
     <!-- <arg name="roadmap" default="maps/mobile_robotics_lab/straight.xml"/> -->
     <!-- <arg name="roadmap" default="maps/mobile_robotics_lab/diagonal.xml"/> -->
-    <arg name="jackal_name"     default="jackal1"/>
-    <arg name="num_non_com_obj" default="0"/>
-    <arg name="laptop_name"     default="jules" />
+    <arg name="jackal_name" default="jackal1"/>
+    <arg name="num_non_com_obj" default="1"/>
+    <arg name="laptop_name" default="jules" />
     <env name="ROSCONSOLE_CONFIG_FILE" value="/workspace/src/guidance_planner_multi_robot_nodes/config/rosconsole.conf" />
     <!-- Dynamically set the other jackal based on current jackal -->
     <arg name="other_jackal" value="jackal2" if="$(eval arg('jackal_name') == 'jackal1')"/>
@@ -29,7 +29,6 @@
     <param name="ego_robot_ns" type="string" value="/$(arg jackal_name)" /> 
     <param name="laptop_name" type="string" value="$(arg laptop_name)" /> 
 
-    
     <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings_tu_delt_laptop.yaml" if="$(eval arg('laptop_name') == 'tu_delft')"/>
     <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml" if="$(eval arg('laptop_name') == 'jules')"/>
     <rosparam command="load" file="$(find mpc_planner_jackal)/config/guidance_planner.yaml"/>
@@ -55,11 +54,11 @@
         
 
     <include file="$(find vicon_bridge)/launch/vicon.launch">
-        <arg name="object_names" value="[$(arg jackal_name), $(arg other_jackal)]"/>
-        <arg name="object_msg_types" default="[geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped]"/>
-        <arg name="object_frame_ids" default="[map, map]"/>
-        <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name), /vicon/$(arg other_jackal)]"/>
-        <arg name="object_frequency_divider" default="[2, 2]"/>
+        <arg name="object_names" value="[$(arg jackal_name), $(arg other_jackal), dynamic_object1]"/>
+        <arg name="object_msg_types" value="[geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped]"/>
+        <arg name="object_frame_ids" value="[map, map, map]"/>
+        <arg name="object_publish_topics" value="[/vicon/$(arg jackal_name), /vicon/$(arg other_jackal), /vicon/dynamic_object1]"/>
+        <arg name="object_frequency_divider" value="[2, 2, 2]"/>
     </include>
 
     <!-- Bundle dynamic obstacles in one convenient message -->
@@ -67,12 +66,11 @@
         <arg name="run_ekfs" value="true"/>
         <arg name="visualize_scene" value="true"/>
         <arg name="robot_topic" value="$(arg jackal_name)"/>
-        <!-- Only 2 Jackals -->
-        <arg name="dynamic_object_topics" default="[$(arg jackal_name), $(arg other_jackal)]"/>
-        <arg name="dynamic_object_radius" default="0.4"/>
-        <arg name="static_object_topics" default="[]"/>
-        <arg name="static_object_radius" default="0.3"/>
-        <arg name="static_object_sizes" default="[]"/>
+        <arg name="dynamic_object_topics" value="[$(arg jackal_name), $(arg other_jackal), dynamic_object1]"/>
+        <arg name="dynamic_object_radius" value="0.4"/>
+        <arg name="static_object_topics" value="[]"/>
+        <arg name="static_object_radius" value="0.3"/>
+        <arg name="static_object_sizes" value="[]"/>
     </include>
 
     <include file="$(find jackal_description)/launch/description.launch"/>
@@ -88,13 +86,11 @@
     
     <!-- Launch RViz only for jackal1 -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen" if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz"  output="log" >
-        <param name="_name" value="rviz"/>
-    </node> -->
+    
     <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" output="log"/>  -->
-
     <node pkg="joy" name="jules_joy_node" type="joy_node">
         <param name="_dev" value="/dev/input/js0"/> 
         <remap from="/joy" to="/$(arg jackal_name)/jules_joy"/>
     </node>
-</launch>
+
+</launch>  

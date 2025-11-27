@@ -9,6 +9,7 @@
     <arg name="jackal_name" default="jackal1"/>
     <arg name="num_non_com_obj" default="0"/>
     <arg name="laptop_name" default="jules" />
+    <env name="ROSCONSOLE_CONFIG_FILE" value="/workspace/src/guidance_planner_multi_robot_nodes/config/rosconsole.conf" />
     <!-- Dynamically set the other jackal based on current jackal -->
     <arg name="other_jackal" value="jackal2" if="$(eval arg('jackal_name') == 'jackal1')"/>
     <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal2')"/>
@@ -48,6 +49,7 @@
         <remap from="/robot_to_robot/output/current_trajectory" to="/$(arg jackal_name)/robot_to_robot/output/current_trajectory"/>
         <remap from="/events/objective_reached"                 to="/$(arg jackal_name)/events/objective_reached" />
         <remap from="/output/pose"                              to="/$(arg jackal_name)/output/pose" />
+        <remap from="/joy"                                      to="/$(arg jackal_name)/jules_joy"/>
     </node>
         
 
@@ -92,5 +94,9 @@
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen" if="$(eval arg('jackal_name') == 'jackal1')"/>
     
     <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" output="log"/>  -->
+    <node pkg="joy" name="jules_joy_node" type="joy_node">
+        <param name="_dev" value="/dev/input/js0"/> 
+        <remap from="/joy" to="/$(arg jackal_name)/jules_joy"/>
+    </node>
 
 </launch>  
