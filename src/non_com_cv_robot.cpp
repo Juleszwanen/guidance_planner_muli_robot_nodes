@@ -13,11 +13,13 @@
 #include <algorithm>
 #include <boost/bind.hpp>
 #include <Eigen/Dense>
+#include <mpc_planner_types/multi_robot_utility_functions.h>
 
 NonComCVRobot::NonComCVRobot(ros::NodeHandle &nh) : _nh(nh)
 {
     LOG_INFO(_ego_robot_ns + " Starting the a non communicating constant velocity robot");
     _ego_robot_ns = ros::this_node::getNamespace();
+    _ego_robot_id = MultiRobot::extractRobotIdFromNamespace(_ego_robot_ns);
     // Load configuration before constructing Planner
     
     // Initialize subscribers and publishers
@@ -32,7 +34,7 @@ NonComCVRobot::NonComCVRobot(ros::NodeHandle &nh) : _nh(nh)
 
 NonComCVRobot::~NonComCVRobot()
 {
-    LOG_INFO(_ego_robot_ns + " Starting the a non communicating constant velocity robot");
+    LOG_INFO(_ego_robot_ns + " Destructing the a non communicating constant velocity robot");
 }
 
 void NonComCVRobot::statePoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
