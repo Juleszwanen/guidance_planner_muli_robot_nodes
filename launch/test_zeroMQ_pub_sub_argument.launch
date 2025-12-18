@@ -3,8 +3,9 @@
     <!-- Declare command line argument -->
     <arg name="jackal_name" default="jackal1" doc="Name of the jackal robot (e.g., jackal1, jackal2, etc.)"/>
     
-    <!-- Load configuration files -->
-    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml"/>
+    <!-- Load configuration files, choose based on laptop either tu_delft or own laptop -->
+    <!-- <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml"/> -->
+    <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings_tu_delt_laptop.yaml"/>
     <!-- <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/network.yaml"/> -->
     
     

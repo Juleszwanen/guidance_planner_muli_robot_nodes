@@ -8,6 +8,9 @@ robot_ns_list: ["/jackal1", "/jackal2"] # This one is when you want three commun
 rqt_dead_man_switch: false # Allow to activate the deadman switch with rqt_steering this node runs inside the ros network of the central aggregator node
 jules_controller_deadman_switch: true
 
+baseline:
+  mode: "normal_mode" #constant_velocity
+  
 /jackal1:
     network:
         publisher_end_point: "tcp://192.168.0.99:3001"   

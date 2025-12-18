@@ -15,13 +15,11 @@ if __name__ == "__main__":
         rospy.init_node('middleware_subscriber')
         middleware_sub = MiddleWareSubscriber()
         
-        rospy.loginfo(f"{middleware_sub._ego_robot_ns}: MiddleWare Subscriber node started")
-        
         # Run message processing loop in main thread (blocking call)
         middleware_sub.message_processing_loop()
         
     except rospy.ROSInterruptException:
-        rospy.loginfo("MiddleWare Subscriber node interrupted")
+        pass
     except Exception as e:
         rospy.logerr(f"MiddleWare Subscriber node failed: {e}")
     finally:

@@ -48,11 +48,11 @@ struct RobotPrediction
 
     RobotPrediction() = default;
 
-    void Add(const Eigen::Vector2d &p, const double a, const Eigen::Vector2d &v,
+    void Add(const Eigen::Vector2d &p, const double psi, const Eigen::Vector2d &v,
              const double _major_axis = 0, const double _minor_axis = 0)
     {
         pos.push_back(p);
-        angle.push_back(a);
+        angle.push_back(psi);
         vel.push_back(v);
         major_axis.push_back(_major_axis);
         minor_axis.push_back(_minor_axis);
@@ -68,7 +68,7 @@ struct RobotPrediction
         minor_axis.reserve(capacity);
     }
 
-    // clear everything except the id, because that is not neccessary
+    // clear the elements everything except the id, because that is not neccessary
     void clearRobotPrediction()
     {
         id = -1;
@@ -98,35 +98,25 @@ private:
     double _publish_rate_hz{20.0};
     double _stale_timeout_s{0.5};
     std::string _global_frame{"map"};
-    int _robot_prediction_horizon{60};
-    double _robot_prediction_step{0.2};
-
+    int _robot_prediction_horizon{30};  // N: Total number of states (current + future), matching MPC horizon
+    double _robot_prediction_step{0.2}; // dt: Time step size in seconds
+    std::string _baseline_mode{"normal_mode"};
     bool _send_info_first_time{false};
 
     // config /runtime
     std::vector<std::string> _robot_ns_list; // List  of robot namespaces, this will be set via a parameter.
 
     std::vector<ros::Subscriber> _robot_pose_sub_list;          // List of robot pose subcribers
-    std::vector<ros::Subscriber> _robot_trajectory_sub_list;    // List of robot trajectory subscribers
     std::vector<ros::Subscriber> _robot_objective_reached_sub_list; // List of robot objective reached subscribers when a robot has reached an objective it will publish on this topic
 
-    std::map<std::string, ros::Publisher> _obs_pub_by_ns; // A dictionary which stores the publisher by namespace,so you can easily retrieve them
-    std::map<std::string, ros::Publisher> _obs_trajectory_pub_by_ns;
-    ros::Publisher _objectives_reached_pub; // This will publish true if all robots have reached their destination.
-
-    ros::ServiceServer _trajectory_service;
-    ros::Timer _timer; // publish loop
-
     std::map<std::string, RobotPrediction> _robots_predictions;            // will contain for each robot its prediction over a time horizon. This is filled inside the callback for each robot each time the callback is called
-    std::map<std::string, RobotPrediction> _robots_trajectory_predictions; // will contain for each robot the trajectories. This is filled inside the callback for each robot each time the callback is called
     std::map<std::string, bool> _robots_objective_reached;                 //
 
-    // Performance optimization: Pre-allocated containers to avoid repeated memory allocation in hot path
-    std::map<std::string, mpc_planner_msgs::ObstacleArray> _const_obs_cache;      // Reused for robotsToObstacleArray()
-    std::map<std::string, mpc_planner_msgs::ObstacleArray> _trajectory_obs_cache; // Reused for trajectoriesToObstacleArray()
-
-    // Pre-computed strings to avoid string concatenation in hot path callbacks
-    std::map<std::string, std::string> _profiling_names; // Cache for "CentralAggregator::{ns}_trajectoryCallback"
+    // Constant velocity baseline support
+    ros::Timer _cv_timer;               // constant velocity obstacle publishing timer
+    ros::Publisher _cv_obstacles_pub;   // Publishes CV obstacles for baseline experiments
+    mpc_planner_msgs::ObstacleArray _cv_obstacles_msg;  // Pre-allocated CV obstacle message
+    ros::Publisher _objectives_reached_pub;             // This will publish true if all robots have reached their destination.
 
 public:
     explicit CentralAggregator(ros::NodeHandle &nh);
@@ -136,22 +126,12 @@ public:
 
     // One callback reused for all robots; we bind `ns` per-subscriber
     void poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg, const std::string ns);
-    void trajectoryCallback(const nav_msgs::Path::ConstPtr &msg, const std::string ns);
     void objectiveReachedCallback(const std_msgs::Bool::ConstPtr &msg, const std::string ns);
-    void timerCallback(const ros::TimerEvent &);
-
-
-    // Performance optimized versions that populate pre-allocated caches
-    void populateConstantObstacleArrays(const ros::Time &timestamp);
-    void populateTrajectoryObstacleArrays(const ros::Time &timestamp);
-
-    // Updates the obstacle array message only for a specific namespace, this is used by the service server
-    void updateNsTrajectoryObstacleArray(const ros::Time &timestamp, const std::string &robot_ns);
-    bool trajectoryServiceFunction(mpc_planner_msgs::GetOtherTrajectories::Request &req, mpc_planner_msgs::GetOtherTrajectories::Response &response);
-    bool trajectoryServiceTimerFunction(mpc_planner_msgs::GetOtherTrajectories::Request &req, mpc_planner_msgs::GetOtherTrajectories::Response &res);
-
-    // get the number behind the jackal namespace so /jackal1 returns 1
-    int getJackalNumber(const std::string &ns);
+   
+    void cvTimerCallback(const ros::TimerEvent &);
+    
+    // Constant velocity baseline support
+    void publishConstantVelocityObstacles();
 
     // Utility functions which help in chekking and orchastrating if a robot has reached its destination
     bool allRobotsReachedObjective();

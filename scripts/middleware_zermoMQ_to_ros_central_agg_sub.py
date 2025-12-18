@@ -16,7 +16,7 @@ Robot1 ──ZeroMQ──┐
 Robot2 ──ZeroMQ──┤──► Central Agg ──ROS Topics──► Separate Aggregation Node
 Robot3 ──ZeroMQ──┘     Subscriber    (Relay)      (Business Logic)
 
-Author: [Your Name]
+Author: Jules Zwanen
 Date: November 2025
 """
 
@@ -35,18 +35,17 @@ if __name__ == "__main__":
     
     try:
         rospy.init_node('middleware_central_agg_sub', log_level=rospy.INFO)
-        rospy.loginfo("[Central Aggregator Subscriber] Starting central aggregator subscriber node")
         
         # Initialize the central aggregator subscriber middleware
         middleware_sub = MiddleWareCentralAggBaseSub()
-        rospy.loginfo("[Central Aggregator Subscriber] Central aggregator subscriber middleware initialized successfully")
         
-        # The MiddleWareCentralAggBaseSub class will:
-        # 1. Subscribe to ZeroMQ messages from individual robots on their objective topics
-        # 2. Relay these messages to local ROS topics for each robot
-        # 3. Enable local aggregation logic to process all robot statuses
+        # Run message processing loop in main thread (blocking call)
+        middleware_sub.message_processing_loop()
         
-        rospy.loginfo("[Central Aggregator Subscriber] Node ready - listening for robot objective messages")
+    except rospy.ROSInterruptException:
+        pass
+    except Exception as e:
+        rospy.logerr(f"[Central Aggregator Subscriber] Node failed: {e}")
         
         # Run message processing loop in main thread (blocking call)
         middleware_sub.message_processing_loop()

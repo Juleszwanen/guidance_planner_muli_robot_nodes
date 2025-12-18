@@ -30,24 +30,16 @@ if __name__ == "__main__":
     
     try:
         rospy.init_node('middleware_central_agg_pub', log_level=rospy.INFO)
-        rospy.loginfo("[Central Aggregator Publisher] Starting central aggregator publisher node")
         
         # Initialize the central aggregator publisher middleware
         middleware_pub = MiddleWareCentralAggBasePub()
-        rospy.loginfo("[Central Aggregator Publisher] Central aggregator publisher middleware initialized successfully")
         
-        # The MiddleWareCentralAggBasePub class will:
-        # 1. Subscribe to local ROS topic '/all_robots_reached_objective'
-        # 2. Forward these messages to ZeroMQ network for robot distribution
-        # 3. Enable all robots to receive global objective status updates
-        
-        rospy.loginfo("[Central Aggregator Publisher] Node ready - waiting for objective status messages to relay")
         rospy.spin()
         
     except rospy.ROSInterruptException:
-        rospy.loginfo("[Central Aggregator Publisher] Node interrupted by user")
+        pass
     except Exception as e:
-        rospy.logerr(f"[Central Aggregator Publisher] Node failed with error: {e}")
+        rospy.logerr(f"[Central Aggregator Publisher] Node failed: {e}")
         import traceback
         rospy.logerr(f"[Central Aggregator Publisher] Traceback: {traceback.format_exc()}")
     finally:

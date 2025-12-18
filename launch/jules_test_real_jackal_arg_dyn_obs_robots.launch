@@ -19,6 +19,9 @@
     <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal.xml"          if="$(eval arg('jackal_name') == 'jackal1')"/>
     <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_reversed.xml" if="$(eval arg('jackal_name') == 'jackal2')"/>
 
+
+    <!-- <arg name="roadmap" value="maps/mobile_robotics_lab/straight.xml"                   if="$(eval arg('jackal_name') == 'jackal1')"/>
+    <arg name="roadmap" value="maps/mobile_robotics_lab/straight_reversed.xml"          if="$(eval arg('jackal_name') == 'jackal2')"/> -->
     <!-- Direction of experiment: true = forward, false = backward -->
     
     <arg name="direction_of_experiment" value="true" if="$(eval arg('jackal_name') == 'jackal1')" />
