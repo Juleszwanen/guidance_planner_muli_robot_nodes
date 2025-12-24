@@ -8,7 +8,7 @@
 #include <nav_msgs/Path.h>
 #include <ros_tools/profiling.h>
 #include <geometry_msgs/Twist.h>
-
+#include <sensor_msgs/Joy.h>
 struct CvRobotState
 {
     double _x;
@@ -83,13 +83,13 @@ struct CvRobotState
 class NonComCVRobot
 {
 private:
-    double _constance_velocity{0.5};
+    double _constance_velocity{1.5};
     double _integrator_step{0.2};
     double _N{30};
     double _goal_tolerance{0.5};
 
     bool _objective_reached{false};
-
+    bool _enable_output{false};
     CvRobotState _state;
 
     std::string _ego_robot_ns{"/jackal6"};
@@ -101,6 +101,7 @@ private:
     // ROS Subscribers
     ros::Subscriber _state_pose_sub;
     ros::Subscriber _path_sub;
+    ros::Subscriber _jules_controller_sub;
 
     ros::Publisher _cmd_pub;
     ros::Publisher _pose_pub;
@@ -113,6 +114,8 @@ private:
 public:
     void statePoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg);
     void pathCallback(const nav_msgs::Path::ConstPtr &msg);
+    void julesControllerCallback(const sensor_msgs::Joy::ConstPtr &msg);
+
 
     void loop(const ros::TimerEvent & /*event*/);
 

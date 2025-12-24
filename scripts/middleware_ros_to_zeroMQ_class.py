@@ -402,6 +402,7 @@ class MiddleWareSubscriber:
                             rospy.logwarn(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Unknown message type received from ZeroMQ: {msg_type}")
                     
             except zmq.Again:
+                rospy.logerr(f"{self._ego_robot_ns}: zmq.Again")
                 continue
             except Exception as e:
                 rospy.logerr(f"{self._ego_robot_ns}: [ZeroMQ → ROS Subscriber] Error in message processing loop: {e}")

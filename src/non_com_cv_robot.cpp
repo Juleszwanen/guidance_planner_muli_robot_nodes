@@ -15,6 +15,7 @@
 #include <Eigen/Dense>
 #include <mpc_planner_types/multi_robot_utility_functions.h>
 
+
 NonComCVRobot::NonComCVRobot(ros::NodeHandle &nh) : _nh(nh)
 {
     LOG_INFO(_ego_robot_ns + " Starting the a non communicating constant velocity robot");
@@ -93,13 +94,26 @@ void NonComCVRobot::initializeSubscribersAndPublishers(ros::NodeHandle &nh)
 {
     _state_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("input/state_pose", 1,
                                                                boost::bind(&NonComCVRobot::statePoseCallback, this, _1));
-
+    _jules_controller_sub = nh.subscribe<sensor_msgs::Joy>("/joy", 1, boost::bind(&NonComCVRobot::julesControllerCallback, this, _1) ); 
     _path_sub = nh.subscribe<nav_msgs::Path>("input/reference_path", 1,
                                              boost::bind(&NonComCVRobot::pathCallback, this, _1));
 
     _cmd_pub = nh.advertise<geometry_msgs::Twist>("output/command", 1);
     _cv_trajectory_pub = nh.advertise<mpc_planner_msgs::ObstacleGMM>("robot_to_robot/output/current_trajectory", 1);
     _reverse_roadmap_pub = nh.advertise<std_msgs::Empty>("roadmap/reverse", 1);
+    
+}
+
+void NonComCVRobot::julesControllerCallback(const sensor_msgs::Joy::ConstPtr &msg){
+    
+    
+        if (msg->axes[2] < -0.9 && !_enable_output)
+            LOG_INFO(_ego_robot_ns + ": Planning enabled (deadman switch pressed)");
+        else if (msg->axes[2] > -0.9 && _enable_output)
+            LOG_INFO(_ego_robot_ns + ": Deadmanswitch enabled (deadman switch released)");
+
+        _enable_output = msg->axes[2] < -0.9;
+    
 }
 
 void NonComCVRobot::loop(const ros::TimerEvent & /*event*/)
@@ -107,6 +121,11 @@ void NonComCVRobot::loop(const ros::TimerEvent & /*event*/)
     if (!_startup_timer.hasFinished())
     {
         LOG_INFO_THROTTLE(1000, _ego_robot_ns + ": In startup period, skipping planning");
+        return;
+    }
+
+    if (!_enable_output)
+    {
         return;
     }
 
