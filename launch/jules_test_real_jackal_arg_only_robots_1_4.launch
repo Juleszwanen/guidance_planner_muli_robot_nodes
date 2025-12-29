@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 
 <launch>
+    <!-- This launch file is to launch the real world jackal 1 and jackal 4. -->
 
     <arg name="gui" default="false" />
     <arg name="project_name" default="" />
@@ -11,12 +12,11 @@
     <arg name="laptop_name"     default="jules" />
     <env name="ROSCONSOLE_CONFIG_FILE" value="/workspace/src/guidance_planner_multi_robot_nodes/config/rosconsole.conf" />
     <!-- Dynamically set the other jackal based on current jackal -->
-    <arg name="other_jackal" value="jackal2" if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <arg name="other_jackal" value="jackal4" if="$(eval arg('jackal_name') == 'jackal1')"/>
     <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal4')"/>
 
     <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal.xml"          if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_reversed.xml" if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_reversed.xml" if="$(eval arg('jackal_name') == 'jackal4')"/>
 
 
     <!-- <arg name="roadmap" value="maps/mobile_robotics_lab/straight.xml"                   if="$(eval arg('jackal_name') == 'jackal1')"/> -->
@@ -24,7 +24,7 @@
     <!-- Direction of experiment: true = forward, false = backward -->
     
     <arg name="direction_of_experiment" value="true" if="$(eval arg('jackal_name') == 'jackal1')" />
-    <arg name="direction_of_experiment" value="false" if="$(eval arg('jackal_name') == 'jackal2')" />
+    <arg name="direction_of_experiment" value="false" if="$(eval arg('jackal_name') == 'jackal4')" />
     
     <param name="forward_experiment" type="bool" value="$(arg direction_of_experiment)"/>
     <param name="num_non_com_obj" type="int" value="$(arg num_non_com_obj)"/>
@@ -89,10 +89,10 @@
 
     
     <!-- Launch RViz only for jackal1 -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen" if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz"  output="log" >
-        <param name="_name" value="rviz"/>
-    </node> -->
+    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen" if="$(eval arg('jackal_name') == 'jackal1')"/> -->
+    
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz"  output="log" />
+  
     <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" output="log"/>  -->
 
     <node pkg="joy" name="jules_joy_node" type="joy_node">

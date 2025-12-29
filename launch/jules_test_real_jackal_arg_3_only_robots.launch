@@ -10,21 +10,29 @@
     <arg name="num_non_com_obj" default="0"/>
     <arg name="laptop_name"     default="jules" />
     <env name="ROSCONSOLE_CONFIG_FILE" value="/workspace/src/guidance_planner_multi_robot_nodes/config/rosconsole.conf" />
-    <!-- Dynamically set the other jackal based on current jackal -->
-    <arg name="other_jackal" value="jackal2" if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal2')"/>
-    <arg name="other_jackal" value="jackal1" if="$(eval arg('jackal_name') == 'jackal4')"/>
 
-    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal.xml"          if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_reversed.xml" if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <!-- jackal3 does not work, so do not include it -->
+    <!-- Dynamically set the other jackal based on current jackal -->
+    <arg name="other_jackal_i" value="jackal2" if="$(eval arg('jackal_name') == 'jackal1')"/>
+    <arg name="other_jackal_i" value="jackal1" if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <arg name="other_jackal_i" value="jackal1" if="$(eval arg('jackal_name') == 'jackal4')"/>
+
+    <arg name="other_jackal_j" value="jackal4" if="$(eval arg('jackal_name') == 'jackal1')"/>
+    <arg name="other_jackal_j" value="jackal4" if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <arg name="other_jackal_j" value="jackal2" if="$(eval arg('jackal_name') == 'jackal4')"/>
+
+    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal.xml"               if="$(eval arg('jackal_name') == 'jackal1')"/>
+    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_reversed.xml"      if="$(eval arg('jackal_name') == 'jackal2')"/>
+    <arg name="roadmap" value="maps/mobile_robotics_lab/diagonal_perpendicular.xml" if="$(eval arg('jackal_name') == 'jackal4')"/>
 
 
     <!-- <arg name="roadmap" value="maps/mobile_robotics_lab/straight.xml"                   if="$(eval arg('jackal_name') == 'jackal1')"/> -->
     <!-- <arg name="roadmap" value="maps/mobile_robotics_lab/straight_reversed.xml"          if="$(eval arg('jackal_name') == 'jackal2')"/> -->
     <!-- Direction of experiment: true = forward, false = backward -->
     
-    <arg name="direction_of_experiment" value="true" if="$(eval arg('jackal_name') == 'jackal1')" />
+    <arg name="direction_of_experiment" value="true" if="$(eval arg('jackal_name')  == 'jackal1')" />
     <arg name="direction_of_experiment" value="false" if="$(eval arg('jackal_name') == 'jackal2')" />
+    <arg name="direction_of_experiment" value="true" if="$(eval arg('jackal_name')  == 'jackal4')" />
     
     <param name="forward_experiment" type="bool" value="$(arg direction_of_experiment)"/>
     <param name="num_non_com_obj" type="int" value="$(arg num_non_com_obj)"/>
@@ -35,6 +43,7 @@
     <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings_tu_delt_laptop.yaml" if="$(eval arg('laptop_name') == 'tu_delft')"/>
     <rosparam command="load" file="$(find guidance_planner_multi_robot_nodes)/config/multi_robot_settings.yaml" if="$(eval arg('laptop_name') == 'jules')"/>
     <rosparam command="load" file="$(find mpc_planner_jackal)/config/guidance_planner.yaml"/>
+    
     <!-- the config/setting.yaml is loaded inside the c++ code -->
     <node pkg="mpc_planner_jackal" type="jules_ros1_real_jackalplanner" name="jackal_planner" respawn="false" output="screen">
         <param name="simulation" value="false"/>
@@ -53,15 +62,16 @@
         <remap from="/events/objective_reached"                 to="/$(arg jackal_name)/events/objective_reached" />
         <remap from="/output/pose"                              to="/$(arg jackal_name)/output/pose" />
         <remap from="/joy"                                      to="/$(arg jackal_name)/jules_joy"/>
+        <remap from="/mpc_metrics"                              to="/$(arg jackal_name)/mpc_metrics"/>
     </node>
         
 
     <include file="$(find vicon_bridge)/launch/vicon.launch">
-        <arg name="object_names" value="[$(arg jackal_name), $(arg other_jackal)]"/>
-        <arg name="object_msg_types" default="[geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped]"/>
-        <arg name="object_frame_ids" default="[map, map]"/>
-        <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name), /vicon/$(arg other_jackal)]"/>
-        <arg name="object_frequency_divider" default="[2, 2]"/>
+        <arg name="object_names" value="[$(arg jackal_name), $(arg other_jackal_i), $(arg other_jackal_j)]"/>
+        <arg name="object_msg_types" default="[geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped]"/>
+        <arg name="object_frame_ids" default="[map, map, map]"/>
+        <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name), /vicon/$(arg other_jackal_i), /vicon/$(arg other_jackal_j)]"/>
+        <arg name="object_frequency_divider" default="[2, 2, 2]"/>
     </include>
 
     <!-- Bundle dynamic obstacles in one convenient message -->
@@ -70,7 +80,7 @@
         <arg name="visualize_scene" value="true"/>
         <arg name="robot_topic" value="$(arg jackal_name)"/>
         <!-- Only 2 Jackals -->
-        <arg name="dynamic_object_topics" default="[$(arg jackal_name), $(arg other_jackal)]"/>
+        <arg name="dynamic_object_topics" default="[$(arg jackal_name), $(arg other_jackal_i), $(arg other_jackal_j)]"/>
         <arg name="dynamic_object_radius" default="0.4"/>
         <arg name="static_object_topics" default="[]"/>
         <arg name="static_object_radius" default="0.3"/>
@@ -89,10 +99,12 @@
 
     
     <!-- Launch RViz only for jackal1 -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen" if="$(eval arg('jackal_name') == 'jackal1')"/>
-    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz"  output="log" >
-        <param name="_name" value="rviz"/>
-    </node> -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz" output="screen" if="$(eval arg('jackal_name') == 'jackal4')"/>
+    
+    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mpc_planner_jackal)/rviz/ros1.rviz"  output="log" /> -->
+      
+   
+
     <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" output="log"/>  -->
 
     <node pkg="joy" name="jules_joy_node" type="joy_node">
