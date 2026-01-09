@@ -7,7 +7,7 @@
     <!-- <arg name="roadmap" default="maps/mobile_robotics_lab/straight.xml"/> -->
     <!-- <arg name="roadmap" default="maps/mobile_robotics_lab/diagonal.xml"/> -->
     <arg name="jackal_name"     default="jackal1"/>
-    <arg name="num_non_com_obj" default="0"/>
+    <arg name="num_non_com_obj" default="1"/>
     <arg name="laptop_name"     default="jules" />
     <env name="ROSCONSOLE_CONFIG_FILE" value="/workspace/src/guidance_planner_multi_robot_nodes/config/rosconsole.conf" />
 
@@ -67,11 +67,11 @@
         
 
     <include file="$(find vicon_bridge)/launch/vicon.launch">
-        <arg name="object_names" value="[$(arg jackal_name), $(arg other_jackal_i), $(arg other_jackal_j)]"/>
-        <arg name="object_msg_types" default="[geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped]"/>
-        <arg name="object_frame_ids" default="[map, map, map]"/>
-        <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name), /vicon/$(arg other_jackal_i), /vicon/$(arg other_jackal_j)]"/>
-        <arg name="object_frequency_divider" default="[2, 2, 2]"/>
+        <arg name="object_names" value="[$(arg jackal_name), $(arg other_jackal_i), $(arg other_jackal_j), dynamic_object1]"/>
+        <arg name="object_msg_types" default="[geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/PoseWithCovarianceStamped]"/>
+        <arg name="object_frame_ids" default="[map, map, map, map]"/>
+        <arg name="object_publish_topics" default="[/vicon/$(arg jackal_name), /vicon/$(arg other_jackal_i), /vicon/$(arg other_jackal_j), /vicon/dynamic_object1]"/>
+        <arg name="object_frequency_divider" default="[2, 2, 2, 2]"/>
     </include>
 
     <!-- Bundle dynamic obstacles in one convenient message -->
@@ -80,7 +80,7 @@
         <arg name="visualize_scene" value="true"/>
         <arg name="robot_topic" value="$(arg jackal_name)"/>
         <!-- Only 2 Jackals -->
-        <arg name="dynamic_object_topics" default="[$(arg jackal_name), $(arg other_jackal_i), $(arg other_jackal_j)]"/>
+        <arg name="dynamic_object_topics" default="[$(arg jackal_name), $(arg other_jackal_i), $(arg other_jackal_j), dynamic_object1]"/>
         <arg name="dynamic_object_radius" default="0.4"/>
         <arg name="static_object_topics" default="[]"/>
         <arg name="static_object_radius" default="0.3"/>

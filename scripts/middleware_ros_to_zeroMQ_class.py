@@ -22,6 +22,7 @@ class MiddleWarePublisher:
         # Instance variables - each object gets its own
         self.context = zmq.Context.instance()
         self.pub_socket = self.context.socket(zmq.PUB)
+        self._socket_lock = threading.Lock()  # Prevent interleaved sends
         
         self._ego_robot_ns = rospy.get_param("ego_robot_ns", "/jackalx")
         self._ego_robot_id = extractRobotIdFromNamespace(self._ego_robot_ns)
@@ -54,13 +55,15 @@ class MiddleWarePublisher:
         
         self.logger.add_config("Publisher endpoint", self._ego_robot_end_point)
         
-        # Bind socket
+        # Bind socketund I made was to create a client that manually drops old queued messages. Googling I found many people have asked for the same t
         self.bind_pub_socket()
 
         # Setup ROS subscriber, the node subscribes to its own output trajectory
         self._ego_robot_trajectory_topic = f"{self._ego_robot_ns.rstrip('/')}/robot_to_robot/output/current_trajectory"
+        # self._ego_robot_objective_reached_topic = f"{self._ego_robot_ns.rstrip('/')}/events/objective_reached"
         self._ego_robot_objective_reached_topic = f"{self._ego_robot_ns.rstrip('/')}/events/objective_reached"
-
+        self._ego_robot_objective_reached_zeromq_topic = f"{self._ego_robot_id}{self._ego_robot_id}{self._ego_robot_id}{self._ego_robot_ns.rstrip('/')}/events/objective_reached"
+        
         self._ego_trajectory_subscriber = rospy.Subscriber(
             self._ego_robot_trajectory_topic, 
             ObstacleGMM, 
@@ -121,11 +124,12 @@ class MiddleWarePublisher:
                 "from": self._ego_robot_ns
             }
             
-            self.pub_socket.send_multipart([
-                self._ego_robot_trajectory_topic.encode(),
-                json.dumps(meta_data).encode(),
-                self.to_bytes(msg)
-            ])
+            with self._socket_lock:  # Atomic multipart send
+                self.pub_socket.send_multipart([
+                    self._ego_robot_trajectory_topic.encode(),
+                    json.dumps(meta_data).encode(),
+                    self.to_bytes(msg)
+                ])
             
             rospy.logdebug(f"{self._ego_robot_ns}: [ROS → ZeroMQ] Relayed trajectory seq={self.seq}")
             
@@ -143,11 +147,18 @@ class MiddleWarePublisher:
                 "from": self._ego_robot_ns
             }
             
-            self.pub_socket.send_multipart([
-                self._ego_robot_objective_reached_topic.encode(),
-                json.dumps(meta_data).encode(),
-                self.to_bytes(msg)
-            ])
+            # self.pub_socket.send_multipart([
+            #     self._ego_robot_objective_reached_topic.encode(),
+            #     json.dumps(meta_data).encode(),
+            #     self.to_bytes(msg)
+            # ])
+
+            with self._socket_lock:  # Atomic multipart send
+                self.pub_socket.send_multipart([
+                    self._ego_robot_objective_reached_zeromq_topic.encode(),
+                    json.dumps(meta_data).encode(),
+                    self.to_bytes(msg)
+                ])
             
             self.logger.log_runtime_event("ROS → ZeroMQ", f"Relayed objective_reached={msg.data}", "info")
             
@@ -367,7 +378,7 @@ class MiddleWareSubscriber:
         while self._running and not rospy.is_shutdown():
             try:
                 # Poll with 100ms timeout to allow checking shutdown condition regularly
-                if self.sub_socket.poll(timeout=5):
+                if self.sub_socket.poll(timeout=0.1):
                     # Message available - receive immediately without blocking. Gets one complete multipart message from queue
                     multipart_msg = self.sub_socket.recv_multipart(zmq.NOBLOCK)
                     
@@ -447,6 +458,7 @@ class MiddleWareCentralAggBasePub(MiddleWareCentralAggBase):
         
         # Initialize ZeroMQ publisher socket
         self.pub_socket = self.context.socket(zmq.PUB)
+        self._socket_lock = threading.Lock()  # Prevent interleaved sends
         
         # Get central aggregator endpoint configuration
         self._ego_node_end_point = rospy.get_param("/central_aggregator/network/publisher_end_point", "tcp://192.168.0.99:4000")
@@ -514,11 +526,12 @@ class MiddleWareCentralAggBasePub(MiddleWareCentralAggBase):
                 "from": "/central_aggregator"
             }
             
-            self.pub_socket.send_multipart([
-                self._ego_node_all_robots_reached_objective_topic.encode(),
-                json.dumps(meta_data).encode(),
-                self.to_bytes(msg)
-            ])
+            with self._socket_lock:  # Atomic multipart send
+                self.pub_socket.send_multipart([
+                    self._ego_node_all_robots_reached_objective_topic.encode(),
+                    json.dumps(meta_data).encode(),
+                    self.to_bytes(msg)
+                ])
             
             self.logger.log_runtime_event("ROS → ZeroMQ", f"Relayed global objective_reached={msg.data}", "info")
             
@@ -536,11 +549,12 @@ class MiddleWareCentralAggBasePub(MiddleWareCentralAggBase):
                 "from": "/central_aggregator"
             }
             
-            self.pub_socket.send_multipart([
-                self._ego_node_jackal_deadman_switch_topic.encode(),
-                json.dumps(meta_data).encode(),
-                self.to_bytes(msg)
-            ])
+            with self._socket_lock:  # Atomic multipart send
+                self.pub_socket.send_multipart([
+                    self._ego_node_jackal_deadman_switch_topic.encode(),
+                    json.dumps(meta_data).encode(),
+                    self.to_bytes(msg)
+                ])
             
             rospy.logdebug(f"[Central Aggregator] Relayed deadman_switch (angular.z={msg.angular.z})")
             
@@ -612,7 +626,9 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
         """Setup ZeroMQ subscriber."""
         try:
             for robot_ns in self._robot_ns_list:
-                objective_topic = f"{robot_ns.rstrip('/')}/events/objective_reached"
+                # Extract robot ID using the same function as publisher
+                robot_id = extractRobotIdFromNamespace(robot_ns)
+                objective_topic = f"{robot_id}{robot_id}{robot_id}{robot_ns.rstrip('/')}/events/objective_reached"
                 self.sub_socket.setsockopt(zmq.SUBSCRIBE, objective_topic.encode())
                 self.logger.add_subscription(objective_topic, "ZMQ")
                 
@@ -635,14 +651,17 @@ class MiddleWareCentralAggBaseSub(MiddleWareCentralAggBase):
         while self._running and not rospy.is_shutdown():
             try:
                 # Poll with 100ms timeout to allow checking shutdown condition regularly
-                if self.sub_socket.poll(timeout=20):
+                if self.sub_socket.poll(timeout=0.1):
                     multipart_msg = self.sub_socket.recv_multipart(zmq.NOBLOCK)
                     
 
                     if len(multipart_msg) != 3:
-                        rospy.logerr(f"{self._ego_robot_ns}: UNEXPECTED frame count: {len(multipart_msg)}")
+                        rospy.logerr(f"[Central Aggregator]: UNEXPECTED frame count: {len(multipart_msg)}")
                         rospy.logerr(f"Frames: {[len(f) for f in multipart_msg]}")
                         rospy.logerr(f"First frame (topic?): {multipart_msg[0][:100] if len(multipart_msg) > 0 else 'N/A'}")
+                        # Option 3: Use repr() to safely show bytes
+                        for i, m in enumerate(multipart_msg):
+                            print(f"Frame {i}: {m[:100]}")  # First 100 bytes as raw bytes
                         continue  # Skip malformed messages
 
                     if len(multipart_msg) == 3:
