@@ -3,7 +3,8 @@
 #include <guidance_planner_multi_robot_nodes/central_aggregator_node.h>
 #include <mpc_planner_msgs/GetOtherTrajectories.h>
 #include <mpc_planner_types/multi_robot_utility_functions.h>
-
+#include <mpc_planner_util/parameters.h>
+#include <mpc_planner_util/load_yaml.hpp>
 #include <ros_tools/visuals.h>
 #include <ros_tools/logging.h>
 #include <ros_tools/convertions.h>
@@ -20,6 +21,9 @@ CentralAggregator::CentralAggregator(ros::NodeHandle &nh)
     PROFILE_FUNCTION();
     RosTools::Instrumentor::Get().BeginSession("guidance_planner_multi_robot_nodes");
     LOG_INFO("STARTING NODE: " + ros::this_node::getName());
+
+    // Configuration::getInstance().initialize(SYSTEM_CONFIG_PATH(__FILE__, "central_agg_save_settings")); // Initialize the configuration
+    // _experiment_util = std::make_shared<MPCPlanner::ExperimentUtil>();
 
     if (!nh.getParam("/robot_ns_list", _robot_ns_list))
     {
@@ -313,6 +317,14 @@ void CentralAggregator::publishConstantVelocityObstacles()
     
     LOG_DEBUG("Published " + std::to_string(_cv_obstacles_msg.obstacles.size()) + " constant velocity obstacles");
 }
+
+// void CentralAggregator::saveData()
+// {
+//     auto &data_saver = _
+// }
+
+
+
 
 int main(int argc, char *argv[])
 {

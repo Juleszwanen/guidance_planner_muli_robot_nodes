@@ -29,5 +29,3 @@ baseline:
     network:
         publisher_end_point: "tcp://192.168.3.56:3009"
 
-
-
